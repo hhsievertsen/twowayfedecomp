@@ -45,7 +45,9 @@ ui <- fluidPage(
           "For the general case see de Chaisemartin & D'Haultfoeuille (2019): 'Two-way fixed effects estimators with heterogeneous treatment effects'",br(),br(),
            "by Hans H. Sievertsen", tags$a(href="https://github.com/hhsievertsen/", "(github)"), tags$a(href="mailto:h.h.sievertsen@bristol.ac.uk", "h.h.sievertsen@bristol.ac.uk"),br(),br(),br(),
            # chart
-           plotOutput(outputId = "distPlot"),
+          
+           plotOutput(outputId = "distPlot"),br(),
+          downloadButton('download',"Download the data"),br(),br(),
            tableOutput(outputId = "RegSum1"),br(),
            "Notes: The DGP  for the overall ATT (first row) refers to the population weighted ATT across the two groups. The estimate for the overall ATT (first row) is the 2-way fixed effects estimate.",
     ),
@@ -65,14 +67,16 @@ ui <- fluidPage(
                   "* ",  tags$a(href="https://sites.google.com/site/clementdechaisemartin/two_way_FE.pdf?attredirects=0&d=1", "de Chaisemartin & D'Haultfoeuille (2019): 'Two-way fixed effects estimators with heterogeneous treatment effects'"),
                     br(),
                     "* ",tags$a(href="https://cran.r-project.org/web/packages/bacondecomp/readme/README.html", "bacondecomp for R"),
-               
+                
                    br(),br(),
                    strong("Updates:"),br(),
                    "- May 12, 2020: first version by Hans H. Sievertsen",br(),
                    "- May 13, 2020: incorporated changes by Matthieu Stigler (https://matthieustigler.github.io/)",br(),
                    "- May 14, 2020: corrected my mistake in calculating ATT and updated table.",br(),
                    "- May 17, 2020: added event study chart and DGP values to table.",br(),
-                    "- May 22, 2020: minor adjustments.",br(),br(),
+                    "- May 22, 2020: minor adjustments.",br(),
+                  "- Jun 1, 2020: added option to download the data.",
+                  br(),br(),
                    "Corrections and suggestions are very welcome (by e-mail:", tags$a(href="mailto:h.h.sievertsen@bristol.ac.uk", "h.h.sievertsen@bristol.ac.uk"), "or on github:", 
                   tags$a(href="https://github.com/hhsievertsen/twowayfedecomp","github.com/hhsievertsen/twowayfedecomp"),br(),br(),br()
                   ,

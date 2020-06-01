@@ -24,7 +24,14 @@ output$distPlot <- renderPlot({
     G2=G2,                                                       # Size group 2
     G3=G3                                                        # Size group 3
   )
+############################################Output######################################################
 
+  df_for_output<-select(df,id,t,G,D,y)
+  output$download <- downloadHandler(
+    filename = function(){"simulated_data.csv"}, 
+    content = function(fname){
+      write.csv(df_for_output, fname,row.names=FALSE)
+    })
 ##################################### Estimate 2way FE  ######################################################
   beta_twowayDD<-felm(y ~ D | G+ t, df) # estimate two way DD
 

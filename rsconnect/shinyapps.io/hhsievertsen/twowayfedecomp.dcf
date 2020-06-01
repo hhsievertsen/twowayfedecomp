@@ -5,8 +5,8 @@ account: hhsievertsen
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 2342246
-bundleId: 3179003
+bundleId: 3215299
 url: https://hhsievertsen.shinyapps.io/twowayfedecomp/
-when: 1590161264.12805
+when: 1591038439.53719
 asMultiple: FALSE
 asStatic: FALSE
