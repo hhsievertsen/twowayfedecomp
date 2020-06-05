@@ -5,6 +5,7 @@ library("bacondecomp")
 library("tidyverse")
 library("patchwork")
 library("kableExtra")
+library("ggpubr")
 server <- function(input, output) {
   
 output$distPlot <- renderPlot({       
@@ -110,8 +111,8 @@ output$distPlot <- renderPlot({
           group_by(id)%>%mutate(y=ifelse(G==2,y-y[T2-1],ifelse(G==3,y=y-y[T3-1],NA)))%>%
           mutate(post=ifelse(time_to_treatment<1,0,1))%>%
           group_by(post)%>%mutate(ymean_prepost=mean(y))
-        c2<-ggplot(df_es)+geom_jitter(aes(x=time_to_treatment,y=y,colour=as.factor(G)),alpha=0.2)+
-          geom_point(aes(x=time_to_treatment,y=ymean),size=4,colour="black",shape=1)+
+        c2<-ggplot(df_es)+geom_jitter(aes(x=time_to_treatment,y=y,colour=as.factor(G)),alpha=0.1)+
+          geom_point(aes(x=time_to_treatment,y=ymean),size=4,colour="blue",shape=1)+
           geom_line(df_es%>%filter(post==0),mapping=aes(x=time_to_treatment,y=ymean_prepost),size=0.5,linetype="dashed")+
           geom_line(df_es%>%filter(post==1),mapping=aes(x=time_to_treatment,y=ymean_prepost),size=0.5,linetype="dashed")+
           geom_text(df_es%>%ungroup()%>%filter(row_number()==nrow(df_es))%>%mutate(label=paste("Post mean:",round(ymean_prepost,3))),
@@ -123,7 +124,25 @@ output$distPlot <- renderPlot({
         
       
 ##################################### Chart showing DDs  ##############################################
-         c1<-ggplot(df,aes(x=t,y=y,colour=as.factor(G)))+geom_jitter(alpha=0.2)+
+        # calculate weights for CD
+        #
+        cd<-df
+        m<-lm(D~as.factor(t)+as.factor(G),data=cd)
+        cd$res<-m$residuals
+        # 
+        w<-cd%>%filter(G!=1)%>%group_by(t,G)%>%summarise(d=mean(D),res=mean(res),y=mean(y))%>%filter(d==1)%>%
+          ungroup()%>%mutate(weight=(1/n())*res/sum((1/n())*res))
+        negw<-dim(w%>%filter(weight<0))[1]
+        posw<-dim(w%>%filter(weight>0))[1]
+        totw<-negw+posw
+        if (negw>0){
+          sumnegw<-sum(w%>%filter(weight<0)%>%select(weight))
+        }
+        else{
+          sumnegw=0
+        }
+        # main chart
+         c1<-ggplot(df,aes(x=t,y=y,colour=as.factor(G)))+geom_jitter(alpha=0.1)+
             geom_step(aes(x=t,y=ybar),size=2) +
             theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
                   panel.background = element_blank(), axis.line = element_line(colour = "black"),
@@ -131,8 +150,14 @@ output$distPlot <- renderPlot({
                                                                    face="bold"),
                   legend.key=element_blank(),legend.title = element_text(size=10,face="bold"),
                   plot.title = element_text(hjust = 0.5))+
-            labs(colour="Group",title="(a) Outcome value (y) over time (t)  ")+ scale_color_brewer(palette="Dark2")
-        c1+c2
+            labs(colour="Group",title="(a) Outcome value (y) over time (t)  ")+ scale_color_brewer(palette="Dark2")+
+           geom_point(data=w,mapping=aes(x=t,y=y,shape=as.factor(round(weight,digits=6))),size=3,color="black")+
+           scale_shape(solid = FALSE)+
+           labs(colour="Group",shape="Cell weight")
+         
+         output$cdout<-   renderText({paste("Notes: the cell weight indicators are positioned at the mean value of the outcome (y) at the corresponding period (t) for the group (g). Under the common trends assumption, beta estimates a weighted sum of ",totw,".",
+                          negw, " ATTs receive a negative weight. The sum of the negative weights is: ",round(sumnegw,digits=4),".",sep="") })
+         ggarrange(c1,c2,nrow=1, common.legend = TRUE, legend="top")
     })
     
 }
