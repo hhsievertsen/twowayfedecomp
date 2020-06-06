@@ -54,10 +54,10 @@ output$distPlot <- renderPlot({
        df_bacon <- bacon(y ~ D,data = df,id_var = "id",time_var = "t")    # Bacon decomp
       # Adjust table to have same format
       df_bacon_clean<-df_bacon%>%
-          mutate(type=ifelse(row_number()==1,"- Group 2 as treated & never treated as control.",
-                      ifelse(row_number()==2,"- Group 3 as treated & never treated as control.",
-                      ifelse(row_number()==3,"- Group 3 as treated & group 2 as control.",
-                      "- Group 2 as treated & group 3 as control." ))),
+          mutate(type=ifelse(row_number()==1,"-Group 2 as T & never treated as C",
+                      ifelse(row_number()==2,"-Group 3 as T & never treated as C",
+                      ifelse(row_number()==3,"-Group 3 as T & group 2 as C",
+                      "-Group 2 as T & group 3 as C" ))),
                       order=ifelse(row_number()==1,3,ifelse(row_number()==2,6,ifelse(row_number()==3,7,4))),
                  estimate=round(estimate,3),weight=round(weight,3))%>%
           select(type,estimate,weight,order)%>%mutate(ATT_DGP="",population_weight="") 
@@ -78,16 +78,27 @@ output$distPlot <- renderPlot({
       #Append Goodman Decomp
       df_disp<-rbind(df_bacon_clean,merged)
       # Final stuff
-      df_disp<-df_disp%>%arrange(order)%>%select(type,ATT_DGP,population_weight,-order,estimate,weight)%>%
+      df_disp<-df_disp%>%arrange(order)%>%select(type,ATT_DGP,population_weight,estimate,weight,order)%>%
           mutate(weight=ifelse(row_number()==1,"",weight))
       # Format table
-      a<-df_disp%>%
-        knitr::kable("html",align = c("l","c","c","c","c","c"),col.names = c(" ","DGP",
-                                                                             "Population weight","Estimate",
-                                                                               "Two-way FE Weight")) %>%
+      # Overall
+      overall<-df_disp%>%filter(order%in%c(1,2,5))%>%
+        mutate(estimate=ifelse(order==1,estimate,""))%>%select(-weight,-order)%>%
+        knitr::kable("html",align = c("l","c","c","c","c"),col.names = c(" ","DGP","Pop share","Two FE  Estimate")) %>%
       kable_styling("striped", full_width = F) 
+      #
+      bacon<-df_disp%>%filter(row_number(weight)>2)%>%select(-order,-ATT_DGP,-population_weight)%>%
+        knitr::kable("html",align = c("l","c","c","c"),col.names = c(" ","DD Estimate           ",
+                                                                             "Weight        ")) %>%
+        kable_styling("striped", full_width = F) 
+      
+      # Bacon
+      output$bacon <- renderPrint(                                   # Post Bacon decomposition
+        bacon )
+      # overall
+      output$RegSum1 <- renderPrint(                                   # Post overall
+        overall )
       }
-  
       else{
         # No variation in timing just report 2way FE
         df_bacon_att<-tibble(type="ATT",estimate=beta_twowayDD$beta[1,1],weight="",order=1)
@@ -96,13 +107,19 @@ output$distPlot <- renderPlot({
           mutate(estimate=round(estimate,3),weight=round(estimate,3))
         df_disp<-rbind(df_bacon_att)
         df_disp<-df_disp%>%arrange(order)%>%select(type,ATT_DGP,-order,estimate,-population_weight,-weight)%>%filter(row_number()==1)
-        a<-df_disp%>%
-          knitr::kable("html",align = c("l","c","c","c","c","c"),col.names = c(" ","DGP",
-                                                                               "Estimate")) %>%
-          kable_styling("striped", full_width = F) 
+        overall<-df_disp%>%knitr::kable("html",align = c("l","c","c"),col.names = c(" ","DGP","Two FE  Estimate")) %>%
+          kable_styling("striped", full_width = F)
+        output$RegSum1 <- renderPrint(                                   # Post overall
+          overall )
+        bacon<-tibble(c="Not applicable")%>%knitr::kable("html",align = c("l"),col.names = c(" ")) %>%
+          kable_styling("striped", full_width = F)
+        # Bacon
+        output$bacon <- renderPrint(                                   # Post Bacon decomposition
+          bacon )
       }
-        output$RegSum1 <- renderPrint(                                   # Post Bacon decomposition
-          a )
+      # Overall
+  
+   
 ##################################### Event study 
         
         # event study
@@ -126,38 +143,42 @@ output$distPlot <- renderPlot({
 ##################################### Chart showing DDs  ##############################################
         # calculate weights for CD
         #
+        
         cd<-df
         m<-lm(D~as.factor(t)+as.factor(G),data=cd)
         cd$res<-m$residuals
         # 
         w<-cd%>%filter(G!=1)%>%group_by(t,G)%>%summarise(d=mean(D),res=mean(res),y=mean(y))%>%filter(d==1)%>%
           ungroup()%>%mutate(weight=(1/n())*res/sum((1/n())*res))
-        negw<-dim(w%>%filter(weight<0))[1]
-        posw<-dim(w%>%filter(weight>0))[1]
-        totw<-negw+posw
-        if (negw>0){
-          sumnegw<-sum(w%>%filter(weight<0)%>%select(weight))
-        }
-        else{
-          sumnegw=0
-        }
+        # Table
+        cdtab<-w%>%group_by(G)%>%mutate(neg_weight=ifelse(weight<0,weight,0),neg_weight_i=ifelse(weight<0,1,0),weight_i=1)%>%summarise(sum_total=sum(weight),sum_neg=sum(neg_weight),count_total=sum(weight_i),count_neg=sum(neg_weight_i))%>%
+          mutate(G=ifelse(G==2,"-Group 2","-Group 3"))%>%select(G,count_total,count_neg,sum_total,sum_neg)%>%mutate(sum_total=round(sum_total,digits=3),sum_neg=round(sum_neg,digits=3))         
+        cdtot<-cdtab%>%ungroup()%>%summarise(sum_total=sum(sum_total),sum_neg=sum(sum_neg),count_total=sum(count_total),count_neg=sum(count_neg))%>%
+          mutate(G="Total")%>%select(G,count_total,count_neg,sum_total,sum_neg)%>%mutate(sum_total=round(sum_total,digits=3),sum_neg=round(sum_neg,digits=3))
+        cdtab<-rbind(cdtot,cdtab)
+        cdtabf<-cdtab%>%   knitr::kable("html",align = c("l","c","c","c","c"),col.names = c(" ","Weights",
+                                                                                            "Neg. weights","Sum weights", "Sum neg. weights")) %>%
+          kable_styling("striped", full_width = F) 
+        output$cd <- renderPrint(                                   # Post CD decomposition
+          cdtabf )
+       
         # main chart
-         c1<-ggplot(df,aes(x=t,y=y,colour=as.factor(G)))+geom_jitter(alpha=0.1)+
-            geom_step(aes(x=t,y=ybar),size=2) +
-            theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                  panel.background = element_blank(), axis.line = element_line(colour = "black"),
-                  legend.position="top",legend.text = element_text(size=10, 
-                                                                   face="bold"),
-                  legend.key=element_blank(),legend.title = element_text(size=10,face="bold"),
-                  plot.title = element_text(hjust = 0.5))+
-            labs(colour="Group",title="(a) Outcome value (y) over time (t)  ")+ scale_color_brewer(palette="Dark2")+
-           geom_point(data=w,mapping=aes(x=t,y=y,shape=as.factor(round(weight,digits=6))),size=3,color="black")+
-           scale_shape(solid = FALSE)+
-           labs(colour="Group",shape="Cell weight")
-         
-         output$cdout<-   renderText({paste("Notes: the cell weight indicators are positioned at the mean value of the outcome (y) at the corresponding period (t) for the group (g). Under the common trends assumption, beta estimates a weighted sum of ",totw,".",
-                          negw, " ATTs receive a negative weight. The sum of the negative weights is: ",round(sumnegw,digits=4),".",sep="") })
-         ggarrange(c1,c2,nrow=1, common.legend = TRUE, legend="top")
+        c1<-ggplot(df,aes(x=t,y=y,colour=as.factor(G)))+geom_jitter(alpha=0.1)+
+          geom_step(aes(x=t,y=ybar),size=2) +
+          theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                panel.background = element_blank(), axis.line = element_line(colour = "black"),
+                legend.position="top",legend.text = element_text(size=10, 
+                                                                 face="bold"),
+                legend.key=element_blank(),legend.title = element_text(size=10,face="bold"),
+                plot.title = element_text(hjust = 0.5))+
+          labs(colour="Group",title="(a) Outcome value (y) over time (t)  ")+ scale_color_brewer(palette="Dark2")+
+          geom_point(data=w,mapping=aes(x=t,y=y,shape=as.factor(round(weight,digits=6))),size=3,color="black")+
+          scale_shape(solid = FALSE)+
+          labs(colour="Group:",shape="CD cell weights:")
+        output$cdout<-   renderText({"Notes: the cell weight indicators are positioned at the mean value of the outcome (y) at the corresponding period (t) for the group (g)." })
+       
+        ggarrange(c1,c2,nrow=1, common.legend = TRUE, legend="top")
+   
     })
     
 }

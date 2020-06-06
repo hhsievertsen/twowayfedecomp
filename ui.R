@@ -43,18 +43,23 @@ ui <- fluidPage(
            strong("Group size"),
            sliderInput(inputId = "group2size",label = "Group 2:",min = 2,max = 30,value = 15, ticks = FALSE),
            sliderInput(inputId = "group3size",label = "Group 3:",min = 2,max = 30,value = 15, ticks = FALSE),
+           downloadButton('download',"Download the data"),
            
     ),
     # Main panel with results
     column(6,
-           h3("Illustration of two-way fixed effects estimator decomposition"),br(),
+           h3("Illustration of the two-way fixed effects estimator decomposition"),br(),
           
           
            plotOutput(outputId = "distPlot"),
-          textOutput("cdout"),
-          downloadButton('download',"Download the data"),br(),br(),
+          textOutput("cdout"),br(),
+          strong("A. DGP, population shares and the two FE estimate:"),
            tableOutput(outputId = "RegSum1"),br(),
-           "Notes: The DGP  for the overall ATT [first row] refers to the population weighted ATT across the two groups. The estimate for the overall ATT [first row] is the 2-way fixed effects estimate.",
+          column(6, strong("B. Goodman-Bacon Decomposition:"),
+          tableOutput(outputId = "bacon"),br()),
+          column(1," "),
+          column(6,strong("C. Chaisemartin & D'Haultfoeuille decomposition:"),
+          tableOutput(outputId = "cd"))
     ),
     # Side bar with info
     fluidRow(column(3,
@@ -70,9 +75,9 @@ ui <- fluidPage(
                   "1. simulate a simple scenario with G=3, T=50, two treated groups and treatment effects that vary over time and across groups",br(),
                   "2. compare $\\hat{\\beta}_{fe}$  to the population weighted true treatment effects.",br(),
                   "3. decompose $\\hat{\\beta}_{fe}$  in four DDs and obtain their estimates & weights.",br(),
-                  "4. calculate each treated $(g,t)$ cells weight.",br(),br(),
-                  "5. download the simulated data.",br(),
-                  "by Hans H. Sievertsen [", tags$a(href="https://github.com/hhsievertsen/twowayfedecomp", "source code,"),tags$a(href="https://github.com/hhsievertsen/twowayfedecomp", "slides"),"]",tags$a(href="mailto:h.h.sievertsen@bristol.ac.uk", "h.h.sievertsen@bristol.ac.uk"),br(),br(),br(),
+                  "4. calculate each treated $(g,t)$ cells weight.",br(),
+                  "5. download the simulated data.",br(),br(),
+                  "by Hans H. Sievertsen [", tags$a(href="https://github.com/hhsievertsen/twowayfedecomp", "source code,"),tags$a(href="https://github.com/hhsievertsen/twowayfedecomp/raw/master/slides/Notes_on_DiD_weights.pdf", "slides"),"]",tags$a(href="mailto:h.h.sievertsen@bristol.ac.uk", "h.h.sievertsen@bristol.ac.uk"),br(),
                   " - Feedback and suggestions are very welcome."    ,br(),              
                   
                   
