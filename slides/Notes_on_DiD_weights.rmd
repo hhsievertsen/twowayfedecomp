@@ -1,21 +1,20 @@
 ---
 title: "A few notes about decomposing the two way fixed effects estimator"
-author: "By Hans H. Siever tsen (h.h.sievertsen@bristol.ac.uk)"
-date: "This version: 06/06/2020; [link to most recent version](https://github.com/hhsievertsen/twowayfedecomp/raw/master/slides/Notes_on_DiD_weights.pdf)"
+author: "By Hans H. Sievertsen (h.h.sievertsen@bristol.ac.uk)"
+date: "This version: 05/06/2020; [link to most recent version](https://github.com/hhsievertsen/twowayfedecomp/raw/master/slides/Notes_on_DiD_weights.pdf)"
 fontsize: 8pt
-output:
-  xaringan::moon_reader:
-    css: ["default", "default-fonts","style.css"]
-    lib_dir: libs
-    nature:
-      highlightStyle: github
-      highlightLines: true
-      countIncrementalSlides: false
+theme: metropolis
+latex_engine: xelatex
+output: beamer_presentation
 ---
 
+```{r , include=FALSE, echo=FALSE}
+#theme: metropolis
+#latex_engine: xelatex
+#output: beamer_presentation
+```
 
 ```{r setup, include=FALSE, echo=FALSE}
-options(htmltools.dir.version = FALSE)
 knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
 library("tidyverse")
 library("ggpubr")
@@ -60,6 +59,7 @@ df<-simulate_data(42,10,20,1,2,0,0,30,30)
 **Objective**
 
 - Introduce the Chaisemartin & D'Haultfoeuille (forthcoming, AER; CD)  & Goodman-Bacon (2019 WP; GB) decomposition of the two way fixed effects estimator and link them.
+\vspace{20pt}
 
 **Disclaimer**
 
@@ -68,603 +68,773 @@ df<-simulate_data(42,10,20,1,2,0,0,30,30)
 - I don't discuss assumptions (!) and extensions. 
 - Please see the original papers.
 
----
-
-
 # The traditional difference-in-differences (DD)
 
-**The running example**
+The running example
 
-```{r c2, echo = FALSE,fig.width=1.25,fig.height=.75,fig.align="center",dpi=500}
-ggplot(df%>%filter(G!=3))+geom_jitter(aes(x=t,y=y,colour=as.factor(G)),size=.1,alpha=0.1,show.legend = FALSE)+
-  geom_point(df%>%filter(G!=3,row_number()==1),mapping=aes(x=t,y=y,colour=as.factor(G)),size=.001,alpha=1)+
-  theme_classic()+ theme(legend.position="top")+
-  labs(x="t",y="y",colour="Group") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
-   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="white",colour = "white"),
-         text = element_text(size=3),legend.background = element_rect(fill="white",colour = "white"),
-         axis.text=element_text(colour="black"),plot.margin = margin(-.25,0,0,0, "cm"),
-         panel.background = element_rect(fill = "white"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
-   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.15)+
-  coord_fixed(ratio = 6)
+```{r c2, echo = FALSE,fig.width=3,fig.height=2,fig.align="center"}
+ggplot(df%>%filter(G!=3))+geom_jitter(aes(x=t,y=y,colour=as.factor(G)),size=.8,alpha=0.2)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)
   
 ```
 
 - $t$: period, $g$: group, $y$: outcome, $d$: treatment indicator,  $g=1$ is never treated, $g=2$ is treated from $t=10$.
 
----
+## The traditional DD
 
-
-# Hello World
-
-Install the **xaringan** package from [Github](https://github.com/yihui/xaringan):
-
-```{r eval=FALSE, tidy=FALSE}
-devtools::install_github("yihui/xaringan")
+```{r c3, echo = FALSE,fig.width=3,fig.height=2,fig.align="center"}
+ggplot(df%>%filter(G!=3))+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)
+  
 ```
 
---
+- $t$: period, $g$: group, $y$: outcome, $d$: treatment indicator,  $g=1$ is never treated, $g=2$ is treated from $t=10$.
+- DD estimate: 
+\begin{equation}\hat{\beta}^{DD}=(\bar{Y}_{g=2,t\geq 10}-\bar{Y}_{g=2,t<10})-(\bar{Y}_{g=1,t\geq 10}-\bar{Y}_{g=1,t<10})
+\end{equation}
 
-You are recommended to use the [RStudio IDE](https://www.rstudio.com/products/rstudio/), but you do not have to.
+- As seen in for example *Card & Krueger (1994) "Minimum Wages and Employment: A Case Study of the Fast
+Food Industry in New Jersey and Pennsylvania", AER, 84, 772-784.*
 
-- Create a new R Markdown document from the menu `File -> New File -> R Markdown -> From Template -> Ninja Presentation`;<sup>1</sup>
+## DD with more groups
 
---
-
-- Click the `Knit` button to compile it;
-
---
-
-- or use the [RStudio Addin](https://rstudio.github.io/rstudioaddins/)<sup>2</sup> "Infinite Moon Reader" to live preview the slides (every time you update and save the Rmd document, the slides will be automatically reloaded in RStudio Viewer.
-
-.footnote[
-[1] 中文用户请看[这份教程](http://slides.yihui.org/xaringan/zh-CN.html)
-
-[2] See [#2](https://github.com/yihui/xaringan/issues/2) if you do not see the template or addin in RStudio.
-]
-
----
-background-image: url(`r xaringan:::karl`)
-background-position: 50% 50%
-class: center, bottom, inverse
-
-# You only live once!
-
----
-
-# Hello Ninja
-
-As a presentation ninja, you certainly should not be satisfied by the "Hello World" example. You need to understand more about two things:
-
-1. The [remark.js](https://remarkjs.com) library;
-
-1. The **xaringan** package;
-
-Basically **xaringan** injected the chakra of R Markdown (minus Pandoc) into **remark.js**. The slides are rendered by remark.js in the web browser, and the Markdown source needed by remark.js is generated from R Markdown (**knitr**).
-
----
-
-# remark.js
-
-You can see an introduction of remark.js from [its homepage](https://remarkjs.com). You should read the [remark.js Wiki](https://github.com/gnab/remark/wiki) at least once to know how to
-
-- create a new slide (Markdown syntax<sup>*</sup> and slide properties);
-
-- format a slide (e.g. text alignment);
-
-- configure the slideshow;
-
-- and use the presentation (keyboard shortcuts).
-
-It is important to be familiar with remark.js before you can understand the options in **xaringan**.
-
-.footnote[[*] It is different with Pandoc's Markdown! It is limited but should be enough for presentation purposes. Come on... You do not need a slide for the Table of Contents! Well, the Markdown support in remark.js [may be improved](https://github.com/gnab/remark/issues/142) in the future.]
-
----
-background-image: url(`r xaringan:::karl`)
-background-size: cover
-class: center, bottom, inverse
-
-# I was so happy to have discovered remark.js!
-
----
-class: inverse, middle, center
-
-# Using xaringan
-
----
-
-# xaringan
-
-Provides an R Markdown output format `xaringan::moon_reader` as a wrapper for remark.js, and you can use it in the YAML metadata, e.g.
-
-```yaml
----
-title: "A Cool Presentation"
-output:
-  xaringan::moon_reader:
-    yolo: true
-    nature:
-      autoplay: 30000
----
+```{r c4, echo = FALSE,fig.width=3,fig.height=2,fig.align="center"}
+ggplot(df)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)
+  
 ```
 
-See the help page `?xaringan::moon_reader` for all possible options that you can use.
+- Add another group,  $g=3$ that gets treated from period $t=20$.
 
----
+- DD estimate is then often estimated as $\hat{\beta}_{fe}$ from an OLS regression of: 
+\begin{equation}y_{i,g,t}=\alpha+\gamma' G_{g}+\psi' T_{t}+ \beta_{fe} D_{g,t}+e_{i,g,t}\end{equation}
+- $\beta_{fe}$ is also called the two-way FE estimator (we have both group and period fixed effects).
 
-# remark.js vs xaringan
 
-Some differences between using remark.js (left) and using **xaringan** (right):
+## What  $\beta_{fe}$ capturing and how does it relate to $\hat{\beta}^{DD}$ ?
 
-.pull-left[
-1. Start with a boilerplate HTML file;
+**Bit question: What is ${\beta}_{fe}$ capturing?**
+\vspace{15pt}
+  
+- *Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
 
-1. Plain Markdown;
+  - **Decomposition of $\hat{\beta}_{fe}$  in weighted ATEs across $(t,g)$ cells.**
+  - Applicable to 2-way (e.g., group & time) fixed effects approaches.
 
-1. Write JavaScript to autoplay slides;
+\vspace{15pt}
+  
+- *Goodman-Bacon (GB): "Difference-in-Differences with Variation in Treatment Timing" (2019, WP)*
 
-1. Manually configure MathJax;
+  - **Decomposition of $\hat{\beta}_{fe}$  in weighted $\hat{\beta}^{DD}$s**
+  - Applicable to staggered adoptation designs.
+  
+- (There are other papers.)
 
-1. Highlight code with `*`;
+**Let's start with the GB approach**
 
-1. Edit Markdown source and refresh browser to see updated slides;
-]
+## The GB decomposition
 
-.pull-right[
-1. Start with an R Markdown document;
-
-1. R Markdown (can embed R/other code chunks);
-
-1. Provide an option `autoplay`;
-
-1. MathJax just works;<sup>*</sup>
-
-1. Highlight code with `{{}}`;
-
-1. The RStudio addin "Infinite Moon Reader" automatically refreshes slides on changes;
-]
-
-.footnote[[*] Not really. See next page.]
-
----
-
-# Math Expressions
-
-You can write LaTeX math expressions inside a pair of dollar signs, e.g. &#36;\alpha+\beta$ renders $\alpha+\beta$. You can use the display style with double dollar signs:
-
-```
-$$\bar{X}=\frac{1}{n}\sum_{i=1}^nX_i$$
+- We consider the example with 3 groups and a staggered introduction of a policy: 
+```{r c5, echo = FALSE,fig.width=2.5,fig.height=1.5,fig.align="center"}
+ggplot(df)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)
+  
 ```
 
-$$\bar{X}=\frac{1}{n}\sum_{i=1}^nX_i$$
+- Goodman-Bacon:  we can decompose this in 4 separate $\hat{\beta}^{DD}$:
 
-Limitations:
+\vspace{12pt}
 
-1. The source code of a LaTeX math expression must be in one line, unless it is inside a pair of double dollar signs, in which case the starting `$$` must appear in the very beginning of a line, followed immediately by a non-space character, and the ending `$$` must be at the end of a line, led by a non-space character;
+```{r c6, echo = FALSE,fig.width=5,fig.height=2}
 
-1. There should not be spaces after the opening `$` or before the closing `$`.
+bp<-ggplot(df)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +xlim(0,50)+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),plot.title = element_text(hjust = 0.5),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))
+   
 
-1. Math does not work on the title slide (see [#61](https://github.com/yihui/xaringan/issues/61) for a workaround).
+a<-bp+geom_step(data=df%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))
+b<-bp+geom_step(data=df%>%filter(G!=2),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.25)+
+     scale_color_manual(values=c("#999999",  "#56B4E9"))
+c<-bp+geom_step(data=df%>%filter(G!=1,t<20),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#E69F00", "#56B4E9"))
+d<-bp+geom_step(data=df%>%filter(G!=1,t>10),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.25)+
+    scale_color_manual(values=c( "#E69F00", "#56B4E9"))
 
----
-
-# R Code
-
-```{r comment='#'}
-# a boring regression
-fit = lm(dist ~ 1 + speed, data = cars)
-coef(summary(fit))
-dojutsu = c('地爆天星', '天照', '加具土命', '神威', '須佐能乎', '無限月読')
-grep('天', dojutsu, value = TRUE)
+ggarrange(a,b,c,d,labels = c("DD1: Early (T) vs Never (C) ", "DD2: Late (T) vs Never (C)", "DD3: Early (T) vs Late (C) ","DD4: Late (T) vs Early (C)"),ncol = 4, nrow = 2,common.legend = TRUE, legend = "bottom", font.label = list(size = 3.5, face = "plain", color ="black"))
 ```
 
----
 
-# R Plots
 
-```{r cars, fig.height=4, dev='svg'}
-par(mar = c(4, 4, 1, .1))
-plot(cars, pch = 19, col = 'darkgray', las = 1)
-abline(fit, lwd = 2)
-```
+## GB: ${\beta}^{DD}$ is a weighted average of the separate DDs
 
----
+- In our running example,  ${\beta}^{DD}$ is the weighted average across these 4 DDs:
 
-# Tables
+\begin{equation}
+\hat{\beta}_{fe}=w_1\hat{\beta}^{DD}_1+w_2\hat{\beta}^{DD}_2+w_3\hat{\beta}^{DD}_3+w_4\hat{\beta}^{DD}_4
+\end{equation}
 
-If you want to generate a table, make sure it is in the HTML format (instead of Markdown or other formats), e.g.,
+- Key insight: $w\neq$ population shares, but also depends on when a group gets treated. 
 
-```{r}
-knitr::kable(head(iris), format = 'html')
-```
+- See Theorem 1 in GB for the general expression of (3) (equation 10a in his paper) and the definition of the weights. 
 
----
+- GB then shows that:
 
-# HTML Widgets
+\begin{align}
+\beta^{DD}=VWATT+VWCT-\Lambda ATT
+\end{align}
 
-I have not thoroughly tested HTML widgets against **xaringan**. Some may work well, and some may not. It is a little tricky.
+where: 
 
-Similarly, the Shiny mode (`runtime: shiny`) does not work. I might get these issues fixed in the future, but these are not of high priority to me. I never turn my presentation into a Shiny app. When I need to demonstrate more complicated examples, I just launch them separately. It is convenient to share slides with other people when they are plain HTML/JS applications.
-
-See the next page for two HTML widgets.
-
----
-
-```{r out.width='100%', fig.height=6, eval=require('leaflet')}
-library(leaflet)
-leaflet() %>% addTiles() %>% setView(-93.65, 42.0285, zoom = 17)
-```
-
----
-
-```{r eval=require('DT'), tidy=FALSE}
-DT::datatable(
-  head(iris, 10),
-  fillContainer = FALSE, options = list(pageLength = 8)
-)
-```
-
----
-
-# Some Tips
-
-- When you use the "Infinite Moon Reader" addin in RStudio, your R session will be blocked by default. You can click the red button on the right of the console to stop serving the slides, or use the _daemonized_ mode so that it does not block your R session. To do the latter, you can set the option
-
-    ```r
-    options(servr.daemon = TRUE)
-    ```
+- $VWATT$: variance weighted ATE.
+- $VWCT$: variance weighted common trends.
+- $\Delta ATT$ time varying treatment effect.
     
-    in your current R session, or in `~/.Rprofile` so that it is applied to all future R sessions. I do the latter by myself.
-    
-    To know more about the web server, see the [**servr**](https://github.com/yihui/servr) package.
+(see page 12 in Goodman-Bacon, 2019)
 
---
+## Is it a problem? Let's consider an example.
+**DGP**
 
-- Do not forget to try the `yolo` option of `xaringan::moon_reader`.
+- treatment effects: group2=1 (yellow), group3=2 (blue)
+- equal group sizes
+- **population weighted average  treatment effects=1.5**
 
-    ```yaml
-    output:
-      xaringan::moon_reader:
-        yolo: true
-    ```
+```{r , echo = FALSE,include=FALSE}
+dfnew<-simulate_data(42,10,20,1,2,0.05,0,30,30)
+df_bacon <- bacon(y ~ D,data = df,id_var = "id",time_var = "t")    # Bacon decomp
+cc<-felm(y ~ D | G+ t, df)
+```
 
----
-
-# Some Tips
-
-- Slides can be automatically played if you set the `autoplay` option under `nature`, e.g. go to the next slide every 30 seconds in a lightning talk:
-
-    ```yaml
-    output:
-      xaringan::moon_reader:
-        nature:
-          autoplay: 30000
-    ```
-
---
-
-- A countdown timer can be added to every page of the slides using the `countdown` option under `nature`, e.g. if you want to spend one minute on every page when you give the talk, you can set:
-
-    ```yaml
-    output:
-      xaringan::moon_reader:
-        nature:
-          countdown: 60000
-    ```
-
-    Then you will see a timer counting down from `01:00`, to `00:59`, `00:58`, ... When the time is out, the timer will continue but the time turns red.
-    
----
-
-# Some Tips
-
-- The title slide is created automatically by **xaringan**, but it is just another remark.js slide added before your other slides.
-
-    The title slide is set to `class: center, middle, inverse, title-slide` by default. You can change the classes applied to the title slide with the `titleSlideClass` option of `nature` (`title-slide` is always applied).
-
-    ```yaml
-    output:
-      xaringan::moon_reader:
-        nature:
-          titleSlideClass: [top, left, inverse]
-    ```
-    
---
-
-- If you'd like to create your own title slide, disable **xaringan**'s title slide with the `seal = FALSE` option of `moon_reader`.
-
-    ```yaml
-    output:
-      xaringan::moon_reader:
-        seal: false
-    ```
-
----
-
-# Some Tips
-
-- There are several ways to build incremental slides. See [this presentation](https://slides.yihui.org/xaringan/incremental.html) for examples.
-
-- The option `highlightLines: true` of `nature` will highlight code lines that start with `*`, or are wrapped in `{{ }}`, or have trailing comments `#<<`;
-
-    ```yaml
-    output:
-      xaringan::moon_reader:
-        nature:
-          highlightLines: true
-    ```
-
-    See examples on the next page.
-
----
-
-# Some Tips
+\vspace{15pt}
+**Estimated effects**
+\vspace{-10pt}
+```{r , echo = FALSE, fig.width=5,fig.height=1.5, cache=TRUE,fig.align="center"}
 
 
-.pull-left[
-An example using a leading `*`:
+bp<-ggplot(df)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +xlim(0,50)+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),axis.title.y =element_text(angle=0),
+         text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),plot.title = element_text(hjust = 0.5),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))
+   
 
-    ```r
-    if (TRUE) {
-    ** message("Very important!")
-    }
-    ```
-Output:
-```r
-if (TRUE) {
-* message("Very important!")
+a<-bp+geom_step(data=df%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD1:",round(df_bacon$estimate[1],digits=2)))+
+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+labs(y=paste("w_1:",round(df_bacon$weight[1],digits=2)))
+b<-bp+geom_step(data=df%>%filter(G!=2),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD2:",round(df_bacon$estimate[2],digits=2)))+
+     scale_color_manual(values=c("#999999",  "#56B4E9"))+labs(y=paste("w_2:",round(df_bacon$weight[2],digits=2)))
+c<-bp+geom_step(data=df%>%filter(G!=1,t<20),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD3:",round(df_bacon$estimate[4],digits=2)))+
+  scale_color_manual(values=c("#E69F00", "#56B4E9"))+labs(y=paste("w_3:",round(df_bacon$weight[4],digits=2)))
+d<-bp+geom_step(data=df%>%filter(G!=1,t>10),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD4:",round(df_bacon$estimate[3],digits=2)))+
+    scale_color_manual(values=c( "#E69F00", "#56B4E9"))+labs(y=paste("w_4:",round(df_bacon$weight[3],digits=2)))
+
+ggarrange(a,b,c,d,nrow=1, common.legend = TRUE, legend="top")
+```
+
+
+- $\hat{\beta}_{fe}=$ `r round(df_bacon$weight[1],digits=2)` $\times$ `r round(df_bacon$estimate[1],digits=2)`+ 
+                          `r round(df_bacon$weight[2],digits=2)` $\times$ `r round(df_bacon$estimate[2],digits=2)`+ 
+                          `r round(df_bacon$weight[4],digits=2)` $\times$ `r round(df_bacon$estimate[4],digits=2)`+ 
+                          `r round(df_bacon$weight[3],digits=2)` $\times$ `r round(df_bacon$estimate[3],digits=2)`=`r round(as.numeric(cc$coefficients[1]),digits=2)`
+
+- Group 3 (blue) gets a higher weight because it is treated more in the middle.
+- Not a problem if you know that it is not population weighted.
+
+## What about the last term ($\Lambda ATT$)? Treatments effects varying over time.
+**DGP**
+
+- We now let the treatmetn effect grow with a rate of 3 percent per period in group 2
+- **population weighted average  treatment effect=2.42**
+
+```{r , echo = FALSE,include=FALSE}
+dfnew<-simulate_data(42,10,20,1,2,0.05,0,30,30)
+#dfplot<-dfnew%>%group_by(G,D)%>%mutate(ybar=mean(y))
+df_bacon <- bacon(y ~ D,data = dfnew,id_var = "id",time_var = "t")    # Bacon decomp
+cc<-felm(y ~ D | G+ t, dfnew)
+```
+
+```{r , echo = FALSE, fig.width=3.15,fig.height=2., cache=TRUE,fig.align="center",warning=FALSE}
+
+
+dfplot<-dfnew%>%ungroup()%>%mutate(D=ifelse(t>=10&t<20&G==2,1,D))%>%group_by(G,D)%>%mutate(ybar=mean(y))
+
+
+ggplot(dfplot)+geom_jitter(aes(x=t,y=y,colour=as.factor(G)),size=0.25,alpha=0.05)+theme_classic()+ theme(legend.position="top")+
+  geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1.25)+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)
+
+
+```   
+
+-  **BUT** $\hat{\beta}_{fe}=1.73$ 
+
+  - That issmaller than the average treatment effect in any of the groups!
+  
+- Why?
+
+## What about the last term ($\Lambda ATT$)? Treatments effects varying over time.
+
+**DGP**
+
+- We now let the treatmetn effect grow with a rate of 3 percent per period in group 2
+- **population weighted average  treatment effect=2.42**
+
+```{r , echo = FALSE,include=FALSE}
+dfnew<-simulate_data(42,10,20,1,2,0.05,0,30,30)
+df_bacon <- bacon(y ~ D,data = dfnew,id_var = "id",time_var = "t")    # Bacon decomp
+cc<-felm(y ~ D | G+ t, dfnew)
+```
+
+\vspace{15pt}
+**Decomposing the estimated effect using GBs approach**
+\vspace{-10pt}
+```{r , echo = FALSE, fig.width=5,fig.height=1.5, cache=TRUE,fig.align="center",warning=FALSE}
+dfnew<-simulate_data(42,10,20,1,2,0.05,0,30,30)
+dfplot<-dfnew%>%ungroup()%>%mutate(DD=ifelse(t>=10&t<20&G==2,3,D))%>%group_by(G,D)%>%mutate(ybar=mean(y))%>%
+  group_by(G,DD)%>%mutate(ybar1=mean(y))
+  
+
+
+
+bp<-ggplot(dfplot)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +xlim(0,50)+ylim(0,15)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),axis.title.y =element_text(angle=0),
+        text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),plot.title = element_text(hjust = 0.5),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))
+dfnew<-simulate_data(42,10,20,1,2,0.05,0,30,30)  
+dfnew<-dfnew%>%group_by(t,G)%>%summarise(ybar=mean(y))
+
+
+a<-bp+geom_step(data=dfplot%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+  geom_jitter(data=dfplot%>%filter(G!=3),mapping=aes(x=t,y=y,colour=as.factor(G)),size=0.05,alpha=0.05)+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD1:",round(df_bacon$estimate[1],digits=2)))+
+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+labs(y=paste("w_1:",round(df_bacon$weight[1],digits=2)))
+b<-bp+geom_step(data=dfplot%>%filter(G!=2),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+  geom_jitter(data=dfplot%>%filter(G!=2),mapping=aes(x=t,y=y,colour=as.factor(G)),size=0.05,alpha=0.05)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD2:",round(df_bacon$estimate[2],digits=2)))+
+  scale_color_manual(values=c("#999999",  "#56B4E9"))+labs(y=paste("w_2:",round(df_bacon$weight[2],digits=2)))
+c<-bp+geom_step(data=dfplot%>%filter(G!=1,t<20),mapping=aes(x=t,y=ybar1,colour=as.factor(G)),size=.5)+
+  geom_jitter(data=dfplot%>%filter(G!=1,t<20),mapping=aes(x=t,y=y,colour=as.factor(G)),size=0.05,alpha=0.05)+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD3:",round(df_bacon$estimate[4],digits=2)))+
+  scale_color_manual(values=c("#E69F00", "#56B4E9"))+labs(y=paste("w_3:",round(df_bacon$weight[4],digits=2)))
+d<-bp+geom_step(data=dfplot%>%filter(G!=1,t>10),mapping=aes(x=t,y=ybar1,colour=as.factor(G)),size=.5)+
+  geom_jitter(data=dfplot%>%filter(G!=1,t>10),mapping=aes(x=t,y=y,colour=as.factor(G)),size=0.05,alpha=0.05)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD4:",round(df_bacon$estimate[3],digits=2)))+
+  scale_color_manual(values=c( "#E69F00", "#56B4E9"))+labs(y=paste("w_4:",round(df_bacon$weight[3],digits=2)))
+
+ggarrange(a,b,c,d,nrow=1,common.legend = TRUE)
+
+```   
+
+
+- $\hat{\beta}_{fe}=$ `r round(df_bacon$weight[1],digits=2)` $\times$ `r round(df_bacon$estimate[1],digits=2)`+ 
+                          `r round(df_bacon$weight[2],digits=2)` $\times$ `r round(df_bacon$estimate[2],digits=2)`+ 
+                          `r round(df_bacon$weight[4],digits=2)` $\times$ `r round(df_bacon$estimate[4],digits=2)`+ 
+                          `r round(df_bacon$weight[3],digits=2)` $\times$ `r round(df_bacon$estimate[3],digits=2)`=`r round(as.numeric(cc$coefficients[1]),digits=2)`
+
+
+What if we left out the last DD?
+
+- $\hat{\beta}_{fe}=$ `r round(df_bacon$weight[1],digits=2)` $\times$ `r round(df_bacon$estimate[1],digits=2)`+ 
+                          `r round(df_bacon$weight[2],digits=2)` $\times$ `r round(df_bacon$estimate[2],digits=2)`+ 
+                          `r round(df_bacon$weight[4],digits=2)` $\times$ `r round(df_bacon$estimate[4],digits=2)`=
+                          `r round(df_bacon$weight[1]*df_bacon$estimate[1]+df_bacon$weight[2]*df_bacon$estimate[2]+df_bacon$weight[4]*df_bacon$estimate[4],digits=2)`
+
+## GB Summary
+
+*Goodman-Bacon (GB): "Difference-in-Differences with Variation in Treatment Timing" (2019, WP)*
+
+**Take aways**
+
+-  $\hat{\beta}_{fe}=$ is a weighted average of all the DDs possible combinations 
+
+- Weights $\neq$ popualion shares, but depend on treatment timing. Groups that are treated towards the middle of the period receive more weight.
+
+- If treatment effects vary over time, some DDs can be negative. 
+
+- Also relevant for the common trend assumption: Violations can offset each other.
+
+- GB derives test for violation of weighted common trend assumption.
+
+**What we should do**
+
+- Compute weights and DDs and check whether any of them are negative. ("bacondecomp" function in R and Stata).
+
+- Test for violation of common trend assumption.
+
+- Read the paper (there is much more than ocvered here)
+
+
+## Now to the CD   decomposition
+*Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
+
+**Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
+
+- (back to the original example with constant treatment effects over time)
+
+```{r , echo = FALSE,fig.width=4,fig.height=2,fig.align="center"}
+df1<-simulate_data(42,10,20,1,2,0,0,30,30)
+df1<-df1%>%group_by(G,t)%>%summarise(ybar=mean(ybar),D=mean(D))
+
+ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
+  geom_step(df1%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=1)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)
+
+```
+
+## The CD decomposition
+
+*Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
+
+**Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
+
+- i.e. for the cell $g=2,t=10$, weight number: 1
+
+```{r , echo = FALSE,fig.width=4,fig.height=2,fig.align="center"}
+ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
+  geom_step(df1%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=1)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)+
+    geom_point(data=df1%>%filter(t==10&G==2),mapping=aes(x=t,y=ybar,colour=as.factor(G)))+
+  geom_text(aes(x=10,y=2.3),label="(g=2,t=10)", size=2)
+```
+
+## The CD decomposition
+
+*Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
+
+**Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
+
+- i.e. for the cell $g=2,t=11$, weight number: 2
+
+```{r , echo = FALSE,fig.width=4,fig.height=2,fig.align="center"}
+ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
+  geom_step(df1%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=1)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)+
+    geom_point(data=df1%>%filter(t==10&G==2),mapping=aes(x=t,y=ybar,colour=as.factor(G)),alpha=.25)+
+    geom_point(data=df1%>%filter(t==11&G==2),mapping=aes(x=t,y=ybar,colour=as.factor(G)))+
+  geom_text(aes(x=11,y=2.3),label="(g=2,t=11)",size=2)
+  
+```
+
+## The CD decomposition
+
+*Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
+
+**Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
+
+- i.e. for the cell $g=2,t=12$, weight number: 3
+
+```{r , echo = FALSE,fig.width=4,fig.height=2,fig.align="center"}
+ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
+  geom_step(df1%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=1)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)+
+    geom_point(data=df1%>%filter(t%in%10:11&G==2),mapping=aes(x=t,y=ybar,colour=as.factor(G)),alpha=.25)+
+    geom_point(data=df1%>%filter(t==12&G==2),mapping=aes(x=t,y=ybar,colour=as.factor(G)))+
+  geom_text(aes(x=12,y=2.3),label="(g=2,t=12)",size=2)
+  
+```
+
+## The CD decomposition
+
+*Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
+
+**Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
+
+- i.e. for the cell $g=2,t=13$, weight number: 4
+
+```{r , echo = FALSE,fig.width=4,fig.height=2,fig.align="center"}
+ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
+  geom_step(df1%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=1)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)+
+    geom_point(data=df1%>%filter(t%in%10:12&G==2),mapping=aes(x=t,y=ybar,colour=as.factor(G)),alpha=.25)+
+    geom_point(data=df1%>%filter(t==13&G==2),mapping=aes(x=t,y=ybar,colour=as.factor(G)))+
+  geom_text(aes(x=13,y=2.3),label="(g=2,t=13)",size=2)
+  
+  
+```
+
+## The CD decomposition
+
+*Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
+
+**Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
+
+- i.e. for the cell $g=3,t=50$, weight number: 72
+
+```{r , echo = FALSE,fig.width=4,fig.height=2,fig.align="center"}
+ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
+  geom_step(df1,mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=1)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)+
+    geom_point(data=df1%>%filter(D==1),mapping=aes(x=t,y=ybar,colour=as.factor(G)),alpha=.25)+
+    geom_point(data=df1%>%filter(t==50&G==3),mapping=aes(x=t,y=ybar,colour=as.factor(G)))+
+  geom_text(aes(x=50,y=3.3),label="(g=3,t=50)",size=2)
+  
+  
+```
+
+## The CD decomposition
+
+**Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
+
+- $\beta_{fe}$ is then given by
+
+\begin{align}
+\beta_{fe}=E\left[\sum_{(g,t):D_{g,t}=1} \frac{N_{g,t}}{N_{D=1}} w_{g,t}\Lambda_{g,t}\right]
+\end{align}
+
+
+where
+
+- $w_{g,t}$ is the weight on group $g$ in period $t$ 
+- $\Lambda_{g,t}$ is the TE in group $g$ in period $t$
+- $N_{D=1}$ is the number of treated units.
+- $N_{g,t}$ is the number of observations in cell $g$ and $t$. 
+\vspace{12pt}
+
+**See Theorem 1 in CD**
+
+- How are the weights defined?
+
+## CD: Calculating the weights
+
+**Calculating the CD weights**
+
+1. Run a regression of $D_{g,t}$ on a constant, $g$ and $t$ fixed effects.
+2. Save the residual, $e_{fe,g,t}$
+3. Create the weight of that cell as
+
+\begin{align}
+w_{fe,g_t}=\frac{e_{fe,g,t}}{\sum_{(g,t):D_{g,t}=1} \frac{N_{g,t}}{N_{D=1}}e_{fe,g,t}}
+\end{align}
+
+
+**Intuition**
+
+- Consider cell $(g,t)$ from a group that is treated for almost the entire period and at a time where almost all cells are treated. 
+- We would predict that this cell is treated (because it is from a group that is mostly treated at a time that is mostly treated). 
+- $\Rightarrow$ small or even negative residual 
+- $\Rightarrow$ small or even negative weight.
+
+
+ 
+## An  example from CD
+
+- 2 equally sized groups, 3 periods
+  - group 1 is only treated in period 3
+  - group 2 is treated in period 2 and 3
+  \vspace{12pt}
+- The weights are then:
+  - $e_{fe,1,3}=1/6$
+  - $e_{fe,2,2}=2/6$
+  - $e_{fe,2,3}=-1/6$
+  
+  \vspace{12pt}
+- So that  $\beta_{fe}=1/2 \times E(\Lambda_{1,3}) + 1\times E(\Lambda_{2,2}) - 1/2 \times E(\Lambda_{2,3})$
+- If for example $E(\Lambda_{2,3})=4$ & $E(\Lambda_{1,3})=E(\Lambda_{2,2})=1$, then $\beta_{fe}=-1/2$
+- Estimate is negative, although all cell's treatment effects are positive!
+- This is only an issue with heterogenous treatment effects. 
+
+
+
+## Let's calculate the weights in our example
+
+```{r , echo = FALSE,fig.width=3.5,fig.height=2,fig.align="center",warning=FALSE}
+rm(list=ls())
+# Simulate data
+simulate_data<-function(seed,T2,T3,m2,m3,mt2,mt3,G2,G3){
+  # set values
+  set.seed(seed)                        # set seed
+  mt2=(1+mt2)                           # Treatment effect growth group 2
+  mt3=(1+mt3)                           # Treatment effect growth group 3
+  m2=1+m2                               # Treatment effect group 2
+  m3=1+m3                               # Treatment effect group 3
+  T<-50                                 # Time periods
+  G<-3                                  # Groups
+  G1<-30                                # Group size group 1 (never treated)
+  N<-G1+G2+G3   
+  # Create tibble
+  df<-tibble(id=rep(1:(N),T),                                     # Id variable 1 2 3 ... 1 2 3 
+             t=rep(1:T,each=(N)))%>%                              # Time variable 1 1 1 1 .... 2 2 2
+      mutate(G=ifelse(id<=G1,1,ifelse(id>G1&id<=(G1+G2),2,3)),    # Treated: D==1
+             D=ifelse(G==2&t>=T2,1,ifelse(G==3&t>=T3,1,0)),         # Post treatment indicator 
+             mean=ifelse(D==1&G==2,m2*mt2^(t-T2),                 # Treatment effect group 2 
+                  ifelse(D==1&G==3,m3*mt3^(t-T3),                 # Treatment effect group 3
+                              1)),                                # mean Y for untreated
+              y=rnorm(n=N*T,mean=mean,sd=.1))%>%                  # Simulate Outcome y
+    group_by(G,D)%>%                                              # Group by "group times post" treatment
+    mutate(ybar=mean(y))                                          # Group means for chart
+  return(df)
 }
+df1<-simulate_data(42,10,20,1,2,0,0,30,30)
+
+m<-lm(D~as.factor(t)+as.factor(G),data=df1)
+df1$res<-m$residuals
+# calculate weights
+w<-df1%>%filter(G!=1)%>%group_by(t,G)%>%summarise(d=mean(D),res=mean(res))%>%filter(d==1)%>%
+   ungroup()%>%mutate(weight=1/72*res/sum((1/72)*res),y=ifelse(G==2,2,ifelse(G==3,3,NA)))
+# charts
+ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)))+
+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +ylim(0,4)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.5)+
+  geom_point(data=w,mapping=aes(x=t,y=y,shape=as.factor(round(weight,digits=6))),size=1)+labs(colour="g",shape="weight")
+  
+  
+  
 ```
+\vspace{-10pt}
+- Largest weight at the beginning: few groups are treated.
+- Group 2 cells even get  negative weight after $t=20$ because they are from a group that is mostly treated and at a time that that is mostly treated.
 
-This is invalid R code, so it is a plain fenced code block that is not executed.
-]
+**And using equation (5) we get**:
 
-.pull-right[
-An example using `{{}}`:
+- $\hat{\beta}_{fe}$=10 $\times$ 0.03608 $\times$ 1+
+                      31 $\times$ 0.02135 $\times$ 2-
+                      31 $\times$ 0.0007361 $\times$ 1=1.66
+                      
+- Note: the cells' TEs are normally unobserved (we know the DGP).
 
-````
-`r ''````{r tidy=FALSE}
-if (TRUE) {
-*{{ message("Very important!") }}
+##  Can we link the CD and GB weights?
+
+**The GB weights**
+\vspace{-15pt}
+```{r , echo = FALSE, include=FALSE}
+rm(df1,df)
+df1<-simulate_data(42,10,20,1,2,0,0,30,30)
+df_bacon <- bacon(y ~ D,data = df1,id_var = "id",time_var = "t")   
+
+``` 
+```{r , echo = FALSE, fig.width=5,fig.height=1.5, cache=TRUE,fig.align="center"}
+bp<-ggplot(df1)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +xlim(0,50)+ylim(0,4)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),axis.title.y =element_text(angle=0),
+         text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),plot.title = element_text(hjust = 0.5),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))
+   
+
+a1<-bp+geom_step(data=df1%>%filter(G!=3),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD1:",round(df_bacon$estimate[1],digits=2)))+
+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+labs(title=paste("w_1:",round(df_bacon$weight[1],digits=2)))
+b1<-bp+geom_step(data=df1%>%filter(G!=2),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 25, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD2:",round(df_bacon$estimate[2],digits=2)))+
+     scale_color_manual(values=c("#999999",  "#56B4E9"))+labs(title=paste("w_2:",round(df_bacon$weight[2],digits=2)))
+c1<-bp+geom_step(data=df1%>%filter(G!=1,t<20),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD3:",round(df_bacon$estimate[4],digits=2)))+
+  scale_color_manual(values=c("#E69F00", "#56B4E9"))+labs(title=paste("w_3:",round(df_bacon$weight[4],digits=2)))
+d1<-bp+geom_step(data=df1%>%filter(G!=1,t>10),mapping=aes(x=t,y=ybar,colour=as.factor(G)),size=.5)+
+    geom_vline(xintercept = 25, linetype="dashed", color = "gray", size=0.25)+labs(title=paste("beta_DD4:",round(df_bacon$estimate[3],digits=2)))+
+    scale_color_manual(values=c( "#E69F00", "#56B4E9"))+labs(title=paste("w_4:",round(df_bacon$weight[3],digits=2)))
+
+ggarrange(a1,b1,c1,d1,nrow=1, common.legend = TRUE, legend="top")
+
+```   
+\vspace{-13pt}
+
+- Sum of weights where G=2 is treated: 0.27+0.07=0.34 
+- Sum of weights where G=3 is treated: 0.43+0.23= 0.66
+
+
+**The CD weights**
+\vspace{-18pt}
+
+```{r , echo = FALSE, fig.width=2.5,fig.height=1.5, cache=TRUE,fig.align="center",warning=FALSE}
+rm(list=ls())
+# Simulate data
+simulate_data<-function(seed,T2,T3,m2,m3,mt2,mt3,G2,G3){
+  # set values
+  set.seed(seed)                        # set seed
+  mt2=(1+mt2)                           # Treatment effect growth group 2
+  mt3=(1+mt3)                           # Treatment effect growth group 3
+  m2=1+m2                               # Treatment effect group 2
+  m3=1+m3                               # Treatment effect group 3
+  T<-50                                 # Time periods
+  G<-3                                  # Groups
+  G1<-30                                # Group size group 1 (never treated)
+  N<-G1+G2+G3   
+  # Create tibble
+  df<-tibble(id=rep(1:(N),T),                                     # Id variable 1 2 3 ... 1 2 3 
+             t=rep(1:T,each=(N)))%>%                              # Time variable 1 1 1 1 .... 2 2 2
+      mutate(G=ifelse(id<=G1,1,ifelse(id>G1&id<=(G1+G2),2,3)),    # Treated: D==1
+             D=ifelse(G==2&t>=T2,1,ifelse(G==3&t>=T3,1,0)),         # Post treatment indicator 
+             mean=ifelse(D==1&G==2,m2*mt2^(t-T2),                 # Treatment effect group 2 
+                  ifelse(D==1&G==3,m3*mt3^(t-T3),                 # Treatment effect group 3
+                              1)),                                # mean Y for untreated
+              y=rnorm(n=N*T,mean=mean,sd=.1))%>%                  # Simulate Outcome y
+    group_by(G,D)%>%                                              # Group by "group times post" treatment
+    mutate(ybar=mean(y))                                          # Group means for chart
+  return(df)
 }
+df1<-simulate_data(42,10,20,1,2,0,0,30,30)
+
+m<-lm(D~as.factor(t)+as.factor(G),data=df1)
+df1$res<-m$residuals
+# calculate weights
+w<-df1%>%filter(G!=1)%>%group_by(t,G)%>%summarise(d=mean(D),res=mean(res))%>%filter(d==1)%>%
+   ungroup()%>%mutate(weight=1/72*res/sum((1/72)*res),y=ifelse(G==2,2,ifelse(G==3,3,NA)))
+# charts
+ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)))+
+  scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +ylim(0,4)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.35)+
+  geom_vline(xintercept = 20, linetype="dashed", color = "gray", size=0.35)+
+  geom_point(data=w,mapping=aes(x=t,y=y,shape=as.factor(round(weight,digits=6))),size=.8)+labs(colour="g",shape="weight")
+  
+  
+  
 ```
-````
-Output:
-```{r tidy=FALSE}
-if (TRUE) {
-{{ message("Very important!") }}
-}
-```
+\vspace{-13pt}
 
-It is valid R code so you can run it. Note that `{{}}` can wrap an R expression of multiple lines.
-]
+- Sum of weights where G=2 is treated: 10 $\times$ 0.03608 -31 $\times$ 0.0007361=0.34
+- Sum of weights where G=3 is treated: 31 $\times$ 0.02135=0.66.
 
----
 
-# Some Tips
+##  Back to CD
 
-An example of using the trailing comment `#<<` to highlight lines:
+**So what should we do?**
 
-````markdown
-`r ''````{r tidy=FALSE}
-library(ggplot2)
-ggplot(mtcars) + 
-  aes(mpg, disp) + 
-  geom_point() +   #<<
-  geom_smooth()    #<<
-```
-````
+1. Calculate weights of the cells!
+2. If you have negative weights: calculate $\underline{\sigma}_{fe}$ (See Corollary 1 in the paper)
+  - tells us the amount of treatment heterogeneity that is required to for the pop weighted average treatment effect to  have the opposite sign of $\hat{\beta}_{fe}$. 
+  - So if $\underline{\sigma}_{fe}$ is very small you should be worried!
+  - Are treatment effects likely to be correlated with weights? Check if weights are correlated with covariates.
+3. If things still look bad: use their new estimator: $DID_M$
+  - Identies average effect across switching cells:
+  \begin{align}
+  DID_M=\sigma^T_{t=2}\left(\overbrace{\frac{N_{1,0,t}}{N_S}DID_{+,t}}^{\text{"joiners"}}+\overbrace{\frac{N_{0,1,t}}{N_S}DID_{-,t}}^{\text{"leavers"}} \right)
+  \end{align}
+4. In Stata
+- \texttt{twowayfeweights} calculates weights and $\underline{\sigma}_{fe}$
 
-Output:
+- \texttt{did\_multiplegt} estimates $DID_M$
 
-```{r tidy=FALSE, eval=FALSE}
-library(ggplot2)
-ggplot(mtcars) + 
-  aes(mpg, disp) + 
-  geom_point() +   #<<
-  geom_smooth()    #<<
-```
+- R is on the way
 
----
+##  Read!
 
-# Some Tips
+Read both papers. There are many more insights  in the papers. 
 
-When you enable line-highlighting, you can also use the chunk option `highlight.output` to highlight specific lines of the text output from a code chunk. For example, `highlight.output = TRUE` means highlighting all lines, and `highlight.output = c(1, 3)` means highlighting the first and third line.
+- Check assumptions!
 
-````md
-`r ''````{r, highlight.output=c(1, 3)}
-head(iris)
-```
-````
+- Adding controls
 
-```{r, highlight.output=c(1, 3), echo=FALSE}
-head(iris)
-```
+- First differences
 
-Question: what does `highlight.output = c(TRUE, FALSE)` mean? (Hint: think about R's recycling of vectors)
+- Placebo tests
 
----
+- Correlation between weights and covariates
 
-# Some Tips
+... and much more
 
-- To make slides work offline, you need to download a copy of remark.js in advance, because **xaringan** uses the online version by default (see the help page `?xaringan::moon_reader`).
+## Summary 
 
-- You can use `xaringan::summon_remark()` to download the latest or a specified version of remark.js. By default, it is downloaded to `libs/remark-latest.min.js`.
+Question: What is  $\hat{\beta}_{fe}$ from OLS regression of: 
+$$ y_{i,g,t}=\alpha+\gamma' G_{g}+\psi' T_{t}+ \beta_{fe} D_{g,t}+e_{i,g,t}$$
+capturing?
 
-- Then change the `chakra` option in YAML to point to this file, e.g.
+- Goodman-Bacon (2019, WP) shows that in a staggered adoptation design we can think of this as a weighted average of all possible difference-in-differences.
+  - Weights are not equal to population weights, but depend on when units become treated!
+  - Has implications for common trend assumption.
+  - DDs might enter with opposite sign if treatment effect varies over time.
+\vspace{12pt}  
+  
+  
+- Chaisemartin & D'Haultfoeuille (forthcoming, AER) show that $\hat{\beta}_{fe}$ is a weighted average across all treated $(g,t)$ cells.
+  - The weights can be negative and bias estimates when TEs are heterogeneous!
+  - Provides a quantification of the degree of TE heterogeneity required in order to flip the sign. 
+  - Provides a new estimator.
+  - And much more.
+  
+  
+## What I will do now
 
-    ```yaml
-    output:
-      xaringan::moon_reader:
-        chakra: libs/remark-latest.min.js
-    ```
+1. Calculate Chaisemartin & D'Haultfoeuille weights (with \texttt{twowayfeweights} in Stata or manually  in R).
+2. If I have negative weights, I'll check how much treatment heterogeneity is required to flip the sign (with \texttt{did\_multiplegt} in Stata).
+3. If 2. is small and  it is meaningful, I'll apply their new estimator.
+  - Note it only identifies from switching cells!
+4. If I have a staggered adoption design: check for negative DDs using GB approach (using \texttt{bacondecomp} in Stata).
+5. Create event study charts if possible. 
+6. Use new toolbox to check placebo effects/ weighted common trend assumptions.
 
-- If you used Google fonts in slides (the default theme uses _Yanone Kaffeesatz_, _Droid Serif_, and _Source Code Pro_), they won't work offline unless you download or install them locally. The Heroku app [google-webfonts-helper](https://google-webfonts-helper.herokuapp.com/fonts) can help you download fonts and generate the necessary CSS.
+  
+  
+## Thanks
 
----
+Thanks to Clément, Xavier & Andrew for excellent papers!
 
-# Macros
-
-- remark.js [allows users to define custom macros](https://github.com/yihui/xaringan/issues/80) (JS functions) that can be applied to Markdown text using the syntax `![:macroName arg1, arg2, ...]` or `![:macroName arg1, arg2, ...](this)`. For example, before remark.js initializes the slides, you can define a macro named `scale`:
-
-    ```js
-    remark.macros.scale = function (percentage) {
-      var url = this;
-      return '<img src="' + url + '" style="width: ' + percentage + '" />';
-    };
-    ```
-
-    Then the Markdown text
-
-    ```markdown
-    ![:scale 50%](image.jpg)
-    ```
-
-    will be translated to
-    
-    ```html
-    <img src="image.jpg" style="width: 50%" />
-    ```
-
----
-
-# Macros (continued)
-
-- To insert macros in **xaringan** slides, you can use the option `beforeInit` under the option `nature`, e.g.,
-
-    ```yaml
-    output:
-      xaringan::moon_reader:
-        nature:
-          beforeInit: "macros.js"
-    ```
-
-    You save your remark.js macros in the file `macros.js`.
-
-- The `beforeInit` option can be used to insert arbitrary JS code before `remark.create()`. Inserting macros is just one of its possible applications.
-
----
-
-# CSS
-
-Among all options in `xaringan::moon_reader`, the most challenging but perhaps also the most rewarding one is `css`, because it allows you to customize the appearance of your slides using any CSS rules or hacks you know.
-
-You can see the default CSS file [here](https://github.com/yihui/xaringan/blob/master/inst/rmarkdown/templates/xaringan/resources/default.css). You can completely replace it with your own CSS files, or define new rules to override the default. See the help page `?xaringan::moon_reader` for more information.
-
----
-
-# CSS
-
-For example, suppose you want to change the font for code from the default "Source Code Pro" to "Ubuntu Mono". You can create a CSS file named, say, `ubuntu-mono.css`:
-
-```css
-@import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
-
-.remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
-```
-
-Then set the `css` option in the YAML metadata:
-
-```yaml
-output:
-  xaringan::moon_reader:
-    css: ["default", "ubuntu-mono.css"]
-```
-
-Here I assume `ubuntu-mono.css` is under the same directory as your Rmd.
-
-See [yihui/xaringan#83](https://github.com/yihui/xaringan/issues/83) for an example of using the [Fira Code](https://github.com/tonsky/FiraCode) font, which supports ligatures in program code.
-
----
-
-# Themes
-
-Don't want to learn CSS? Okay, you can use some user-contributed themes. A theme typically consists of two CSS files `foo.css` and `foo-fonts.css`, where `foo` is the theme name. Below are some existing themes:
-
-```{r}
-names(xaringan:::list_css())
-```
-
----
-
-# Themes
-
-To use a theme, you can specify the `css` option as an array of CSS filenames (without the `.css` extensions), e.g.,
-
-```yaml
-output:
-  xaringan::moon_reader:
-    css: [default, metropolis, metropolis-fonts]
-```
-
-If you want to contribute a theme to **xaringan**, please read [this blog post](https://yihui.org/en/2017/10/xaringan-themes).
-
----
-class: inverse, middle, center
-background-image: url(https://upload.wikimedia.org/wikipedia/commons/3/39/Naruto_Shiki_Fujin.svg)
-background-size: contain
-
-# Naruto
-
----
-background-image: url(https://upload.wikimedia.org/wikipedia/commons/b/be/Sharingan_triple.svg)
-background-size: 100px
-background-position: 90% 8%
-
-# Sharingan
-
-The R package name **xaringan** was derived<sup>1</sup> from **Sharingan**, a dōjutsu in the Japanese anime _Naruto_ with two abilities:
-
-- the "Eye of Insight"
-
-- the "Eye of Hypnotism"
-
-I think a presentation is basically a way to communicate insights to the audience, and a great presentation may even "hypnotize" the audience.<sup>2,3</sup>
-
-.footnote[
-[1] In Chinese, the pronounciation of _X_ is _Sh_ /ʃ/ (as in _shrimp_). Now you should have a better idea of how to pronounce my last name _Xie_.
-
-[2] By comparison, bad presentations only put the audience to sleep.
-
-[3] Personally I find that setting background images for slides is a killer feature of remark.js. It is an effective way to bring visual impact into your presentations.
-]
-
----
-
-# Naruto terminology
-
-The **xaringan** package borrowed a few terms from Naruto, such as
-
-- [Sharingan](http://naruto.wikia.com/wiki/Sharingan) (写輪眼; the package name)
-
-- The [moon reader](http://naruto.wikia.com/wiki/Moon_Reader) (月読; an attractive R Markdown output format)
-
-- [Chakra](http://naruto.wikia.com/wiki/Chakra) (查克拉; the path to the remark.js library, which is the power to drive the presentation)
-
-- [Nature transformation](http://naruto.wikia.com/wiki/Nature_Transformation) (性質変化; transform the chakra by setting different options)
-
-- The [infinite moon reader](http://naruto.wikia.com/wiki/Infinite_Tsukuyomi) (無限月読; start a local web server to continuously serve your slides)
-
-- The [summoning technique](http://naruto.wikia.com/wiki/Summoning_Technique) (download remark.js from the web)
-
-You can click the links to know more about them if you want. The jutsu "Moon Reader" may seem a little evil, but that does not mean your slides are evil.
-
----
-
-class: center
-
-# Hand seals (印)
-
-Press `h` or `?` to see the possible ninjutsu you can use in remark.js.
-
-![](https://upload.wikimedia.org/wikipedia/commons/7/7e/Mudra-Naruto-KageBunshin.svg)
-
----
-
-class: center, middle
-
-# Thanks!
-
-Slides created via the R package [**xaringan**](https://github.com/yihui/xaringan).
-
-The chakra comes from [remark.js](https://remarkjs.com), [**knitr**](http://yihui.org/knitr), and [R Markdown](https://rmarkdown.rstudio.com).

@@ -21,7 +21,7 @@ ui <- fluidPage(
     withMathJax(),
     tags$div(HTML("<script type='text/x-mathjax-config' >
             MathJax.Hub.Config({
-            tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+            tex2jax: {inlineMath: [['$','$']]}
             });
             </script >
             ")),
@@ -32,8 +32,8 @@ ui <- fluidPage(
            # Inputs
            numericInput(inputId= "seed",label="Set seed", 1909, min = 0, max = NA),
            strong("Treatment effects"),
-           sliderInput(inputId = "group2treatmenteffect",label = "Group 2 (baseline):",min = 0,max = 3,value = 1.4,step=0.05, ticks = FALSE),
-           sliderInput(inputId = "group3treatmenteffect",label = "Group 3 (baseline):",min = 0,max = 3,value = 1.6,step=0.05, ticks = FALSE),br(),
+           sliderInput(inputId = "group2treatmenteffect",label = "Group 2 (when treatment starts):",min = 0,max = 3,value = 1.4,step=0.05, ticks = FALSE),
+           sliderInput(inputId = "group3treatmenteffect",label = "Group 3 (when treatment starts):",min = 0,max = 3,value = 1.6,step=0.05, ticks = FALSE),br(),
            strong("Time-varying treatment effects"),
            sliderInput(inputId = "group2timeeffect",label = "Group 2 growth rate:",min = -0.03,max = 0.03,value = 0.02,step=0.005, ticks = FALSE),
            sliderInput(inputId = "group3timeeffect",label = "Group 3 growth rate:",min = -0.03,max = 0.03,value = 0,step=0.005, ticks = FALSE),br(),
@@ -53,7 +53,7 @@ ui <- fluidPage(
           
            plotOutput(outputId = "distPlot"),
           textOutput("cdout"),br(),
-          strong("A. DGP, population shares and the two FE estimate:"),
+          strong("A. DGP, population shares and the two-way FE estimate:"),
            tableOutput(outputId = "RegSum1"),br(),
           column(6, strong("B. Goodman-Bacon Decomposition:"),
           tableOutput(outputId = "bacon"),br()),
