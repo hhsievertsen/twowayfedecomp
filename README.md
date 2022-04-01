@@ -1,6 +1,6 @@
 # twowayfedecomp
  
-This is the repository for the following shiny app: https://hhsievertsen.shinyapps.io/twowayfedecomp/ and some slides.
+- This is the repository for the following shiny app: https://hhsievertsen.shinyapps.io/twowayfedecomp/ and slides.
 
-Thanks to https://github.com/MatthieuStigler for contributions on an earlier version!
+- Slides, R and Stata files for my Talk at VIVE on March 31, 2022 are available in folder 20220331VIVE
 
