@@ -1,11 +1,13 @@
 ---
 title: "A few notes about decomposing the two way fixed effects estimator"
 author: "By Hans H. Sievertsen (h.h.sievertsen@bristol.ac.uk)"
-date: "This version: 05/06/2020; [link to most recent version](https://github.com/hhsievertsen/twowayfedecomp/raw/master/slides/Notes_on_DiD_weights.pdf)"
-fontsize: 8pt
+date: 'This version: 05/06/2020; [link to most recent version](https://github.com/hhsievertsen/twowayfedecomp/raw/master/slides/Notes_on_DiD_weights.pdf)'
+output:
+  slidy_presentation: default
+  beamer_presentation: default
 theme: metropolis
 latex_engine: xelatex
-output: beamer_presentation
+fontsize: 8pt
 ---
 
 ```{r , include=FALSE, echo=FALSE}

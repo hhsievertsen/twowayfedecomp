@@ -1,0 +1,21 @@
+\frametitle{Teaser 1: the CD estimator on our data}
+\protect\hypertarget{teaser-1-the-cd-estimator-on-our-data}{}
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{did\_multiplegt}\NormalTok{(}\AttributeTok{df=}\NormalTok{df, }\StringTok{"y"}\NormalTok{, }\StringTok{"G"}\NormalTok{, }\StringTok{"t"}\NormalTok{, }\StringTok{"D"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## $effect
+## treatment
+##  1.029583
+##
+## $N_effect
+## [1] 250
+##
+## $N_switchers_effect
+## [1] 150
+\end{verbatim}
+
+Also available in Stata!

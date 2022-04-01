@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Hvad er der los med difference-in-differences</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Hans H. Sievertsen (h.h.sievertsen@bristol.ac.uk)" />
+    <script src="Notes_on_DiD_weights_files/header-attrs-2.11/header-attrs.js"></script>
+    <link href="Notes_on_DiD_weights_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="Notes_on_DiD_weights_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="Notes_on_DiD_weights_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Hvad er der los med difference-in-differences
+### Hans H. Sievertsen (<a href="mailto:h.h.sievertsen@bristol.ac.uk" class="email">h.h.sievertsen@bristol.ac.uk</a>)
+### 31. marts 2022
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Introduction
+
+**Difference-in-Differences (DiD) is very popular**
+
+* 26 out of the 100 most cited articles in the American Economic Review 2015-2019 use DiD
+
+**Growing recent research on issues with commonly applied DiD methods**
+
+1. *DiD Estimates are oddly weighted averages of treatment effects*
+  (even negative weighted)
+  - Chaisemartin &amp; D'Haultfoeuille (2020), Goodman-Bacon (2021),  Chaisemartin &amp; D'Haultfoeuille (2021), Callaway &amp; Sant'Anna (2021), Sun &amp; Abraham (2021), Borusyak, Jaravel, &amp; Spiess (2021) [and more]
+  
+2. *Tests for // trends are under powered and lead to sample selection*
+  - Roth (2021), Rambachan &amp; Roth (2021)
+
+** Goal for today**
+- Introduction to the issues with *1. DiD Estimates are...*
+- A teaser on solutions. 
+
+
+---
+
+
+
+# Our hypothetical working example
+  
+- Sønderborg Kommune is treated with an intervention in May 2010 and onwards (*D=1*). 
+- Tønder Kommune is never treated (*D=0*)
+- Outcome of interest *y* 
+- Data for individuals in Sønderborg and Tønder for the period January 2010 to December 2011.
+ 
+ 
+&lt;img src="Notes_on_DiD_weights_files/figure-html/intro chart-1.png" style="display: block; margin: auto;" /&gt;
+
+---
+
+# The DiD
+
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-3-1.png" style="display: block; margin: auto;" /&gt;
+
+- Difference Sønderborg: 2.69-1.00=1.69
+- Difference Tønder: 0.25-0.25=0.00
+- Difference-in-Differences=1.69-0=1.69
+
+
+---
+
+# The regression  DiD
+
+We use OLS to estimate
+
+$y=\beta_0+\beta_1 treated +\beta_{DiD} after + \beta_3 after `\(\times\)` treated+u$
+
+- `\(after\)` 1 if May 2010 or later, 0 otherwise.
+- `\(treated\)` 1 if Sønderborg, 0 otherwise.
+
+
+
+```r
+feols(y~treated+after+afterXtreated,data=analysisdata)
+```
+
+```
+## OLS estimation, Dep. Var.: y
+## Observations: 3,000 
+## Standard-errors: IID 
+##                Estimate Std. Error   t value   Pr(&gt;|t|)    
+## (Intercept)    0.253682   0.038169  6.646306 3.5569e-11 ***
+## treated        0.747120   0.042674 17.507594  &lt; 2.2e-16 ***
+## after         -0.004521   0.041812 -0.108116 9.1391e-01    
+## afterXtreated  1.690295   0.046747 36.158308  &lt; 2.2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## RMSE: 0.381434   Adj. R2: 0.879117
+```
+
+
+---
+
+
+# The more flexible regression  DiD
+
+
+We use OLS to estimate the Two-Way Fixed Effects (TWFE) model
+
+`\(y=\alpha+\beta_{TWFE} D+{\tau}'{t}+{\mu}'{m}+u\)`
+
+
+- `\({t}\)` a vector of month dummies
+- `\({m}\)` a vector of municipality dummies
+- `\(D\)` =1 if treated, 0 otherwise
+
+
+```r
+feols(y~D|t+m,data=analysisdata)
+```
+
+```
+## OLS estimation, Dep. Var.: y
+## Observations: 3,000 
+## Fixed-effects: t: 24,  m: 2
+## Standard-errors: Clustered (t) 
+##   Estimate Std. Error t value   Pr(&gt;|t|)    
+## D   1.6903   0.104023 16.2493 4.2321e-14 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## RMSE: 0.192473     Adj. R2: 0.968992
+##                  Within R2: 0.63152
+```
+
+
+---
+
+# More data - and a new treated group!
+
+
+- Aabenraa Kommune is treated with an intervention in June 2012 (*D=1*). 
+- Data for individuals in Sønderborg and Tønder for the period January 2010 to February 2014.
+ 
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-6-1.png" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+# Let's reestimate the DiD
+
+We again use OLS to estimate the Two-Way Fixed Effects (TWFE) model
+
+`\(y=\alpha+\beta_{TWFE} D+{\tau}'{t}+{\mu}'{m}+u\)`
+
+
+- `\({t}\)` a vector of month dummies
+- `\({m}\)` a vector of municipality dummies
+- `\(D\)` =1 if in Sønderborg May 2010 or later, 1 if in Aabenraa in June 2012 or later, 0 otherwise
+
+
+
+```r
+feols(y~D|t+m,data=analysisdata_update)
+```
+
+```
+## OLS estimation, Dep. Var.: y
+## Observations: 8,750 
+## Fixed-effects: t: 50,  m: 3
+## Standard-errors: Clustered (t) 
+##    Estimate Std. Error   t value Pr(&gt;|t|) 
+## D -0.188677   0.363058 -0.519688  0.60562 
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## RMSE: 0.737278     Adj. R2: 0.865463
+##                  Within R2: 0.003704
+```
+
+---
+class: center,blank
+
+
+![](fig1.png)
+
+---
+
+# How does `\(\beta_{TWFE}\)` relate to `\(\beta_{DiD}\)`?
+
+**Big question: What is `\({\beta}_{TWFE}\)` actually capturing?**
+  \vspace{15pt}
+
+- *Goodman-Bacon (GB): "Difference-in-Differences with Variation in Treatment Timing" (2021, JoE )*
+
+  - **Decomposition of `\(\hat{\beta}_{TWFE}\)`  in weighted `\(\hat{\beta}_{DiD}\)`s**
+  - Applicable to staggered adoption designs.
+  
+  
+- *Chaisemartin &amp; D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (2020, AER)*
+
+  - **Decomposition of `\(\hat{\beta}_{TWFE}\)`  in weighted ATEs across `\((t,m)\)` cells.**
+  - Applicable to 2-way (e.g., group &amp; time) fixed effects approaches.
+
+\vspace{15pt}
+  
+
+- (There are other papers.)
+
+
+---
+
+# The GB approach
+  
+- GB: we can decompose 
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-8-1.png" style="display: block; margin: auto;" /&gt;
+
+- into 4 2X2 DiDs:
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/c6-1.png" style="display: block; margin: auto;" /&gt;
+
+
+
+
+---
+# An aside: DiD4 the bad guy!
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/c7-1.png" style="display: block; margin: auto;" /&gt;
+
+
+
+- Difference Aabenraa (Ab), After (Af) minus Before (Be)
+
+`\(Y_{Ab,Af}-Y_{Ab,Be}=(TE_{Ab,Af}+Y0_{Ab,Af})-(Y0_{Ab,Be})\)`
+
+- Difference Sønderborg (Sø)
+
+`\(Y_{Sø,Af}-Y_{Sø,Be}=(TE_{Sø,Af}+Y0_{Sø,Af})-(TE_{Sø,Be}+Y0_{Sø,Be})\)`
+
+
+
+
+- Difference Aabenraa minus Difference Sønderborg (under // trends assumption)
+`\(E[DiD]=E[Y_{Ab,Af}-Y_{Ab,Be}]=E[TE_{Ab,Af}-TE_{Sø,Af}+TE_{Sø,Be})]\)`
+
+- Alert: `\(TE_{Sø,Af}\)` gets negative weight!
+
+
+
+
+---
+# GB `\({\beta}_{TWFE}\)` decomposition
+
+`\({\beta}_{TWFE}\)` ***is the weighted average across these 4 DiDs***:
+
+`$$\hat{\beta}_{TWFE}=w_1\hat{\beta}_{DiD1}+w_2\hat{\beta}_{DiD2}+w_3\hat{\beta}_{DiD3}+w_4\hat{\beta}_{DiD4}$$`
+
+
+- Key insight: `\(w\neq\)` population shares, but also **depends on when a group gets treated**. 
+
+- See Theorem 1 in GB for the general expression of (3) (equation 10a in his paper) and the definition of the weights. 
+
+- GB then shows that:
+  
+  \begin{align}
+\beta^{TWFE}=VWATT+VWCT-\Lambda ATT
+\end{align}
+
+where: 
+  
+- `\(VWATT\)`: variance weighted ATE.
+- `\(VWCT\)`: variance weighted common trends.
+- `\(\Delta ATT\)` time varying treatment effect.
+
+
+---
+# Weights in our example
+
+  
+
+
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-10-1.png" style="display: block; margin: auto;" /&gt;
+
+**Decomposing the TWFE** 
+
+`\(\hat{\beta}_{TWFE}=\)` 0.106 `\(\times\)` 3.195+ 
+  0.175 `\(\times\)` 1.21+ 
+  0.115 `\(\times\)` 1.917+ 
+  0.604 `\(\times\)` -1.589=-0.19
+
+- Weight Sønderborg:0.11+0.12=0.23. `\(N_{Sønd}=100\)`
+- Weight Aabenraa:0.18+0.60+0.78. `\(N_{Sønd}=50\)`
+- Aabenraa gets a higher weight because it is treated more in the middle.
+- Not necessarily a problem if you know that it is not population weighted!
+
+
+---
+# Can we get just remove the bad guy?
+
+
+- We know the true population weighted ATE! 
+  - `\(ATE_{Sø}=3.2\)`
+  - `\(ATE_{Ab}=1.2\)`
+  - `\(ATE_{popw}=2.83\)`
+
+- Let us set `\(w_4=0\)` (and adjust the weights) (this is not right way of doing this!):
+
+`$$\hat{\beta}_{TWFE}=\frac{w_1}{w_1+w_2+w_3}\hat{\beta}_{DiD1}+\frac{w_2}{w_1+w_2+w_3}\hat{\beta}_{DiD2}+\frac{w_3}{w_1+w_2+w_3}\hat{\beta}_{DiD3}$$`
+
+gives and overall ATE:
+
+`$$\hat{\beta}_{TWFE}= 1.95$$`
+
+- Setting also `\(w2=0\)` (and adjusting weights) gives an ATE for Sønderborg
+
+`$$\hat{\beta}_{TWFE, Sø}= 2.5$$`
+  
+- Setting only `\(w2\neq 0\)` (and adjusting weights) gives an ATE for Aabenraa
+
+`$$\hat{\beta}_{TWFE, Ab}=1.21$$`
+
+
+
+---
+
+# The CD   decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-11-1.png" style="display: block; margin: auto;" /&gt;
+
+---
+count: false
+# The CD   decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-12-1.png" style="display: block; margin: auto;" /&gt;
+
+---
+count: false
+# The CD   decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-13-1.png" style="display: block; margin: auto;" /&gt;
+
+
+
+---
+count: false
+# The CD   decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-14-1.png" style="display: block; margin: auto;" /&gt;
+
+
+
+---
+count: false
+# The CD   decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-15-1.png" style="display: block; margin: auto;" /&gt;
+
+
+
+---
+count: false
+# The CD   decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-16-1.png" style="display: block; margin: auto;" /&gt;
+
+
+
+---
+count: false
+# The CD   decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-17-1.png" style="display: block; margin: auto;" /&gt;
+
+
+
+---
+count: false
+# The CD   decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-18-1.png" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+# The CD decomposition
+
+**Decompose `\(\beta_{TWFE}\)`  in weighted TEs across  `\((m,t):D_{m,t}=1\)` cells**
+   
+  - `\(\beta_{TWFE}\)` is then given by
+
+`$$\beta_{TWFE}=E\left[\sum_{(m,t):D_{m,t}=1} \frac{N_{m,t}}{N_{D=1}} w_{m,t}\Lambda_{m,t}\right]$$`
+
+
+
+
+where
+
+- `\(w_{m,t}\)` is the weight on group `\(m\)` in period `\(t\)` 
+  - `\(\Lambda_{m,t}\)` is the TE in group `\(m\)` in period `\(t\)`
+  - `\(N_{D=1}\)` is the number of treated units.
+  - `\(N_{m,t}\)` is the number of observations in cell `\(m,t\)`. 
+  
+  
+
+(See Theorem 1 in CD)
+  
+  - How are the weights defined?
+  
+
+  
+---
+
+# Calculating the CD weights
+  
+1. Run a regression of `\(D_{m,t}\)` on a constant, `\(m\)` and `\(t\)` fixed effects.
+2. Save the residual, `\(e_{g,t}\)`
+3. Create the weight of that cell as
+
+
+`$$w_{m_t}=\frac{e_{m,t}}{\sum_{(m,t):D_{m,t}=1} \frac{N_{m,t}}{N_{D=1}}e_{m,t}}$$`
+
+
+**Intuition**
+  
+  - Consider cell `\((m,t)\)` from a group that is treated for almost the entire period and at a time where almost all cells are treated. 
+- We would predict that this cell is treated (because it is from a group that is mostly treated at a time that is mostly treated). 
+- `\(\Rightarrow\)` small or even negative residual 
+- `\(\Rightarrow\)` small or even negative weight.
+
+- Cells that are treated when no one else is treated + for a group that is rarely treated =&gt; large weight!
+
+---
+# An  example from CD
+
+**2 equally sized groups, 3 periods**
+
+- group 1 is only treated in period 3
+- group 2 is treated in period 2 and 3
+- The weights are then:
+  - `\(e_{fe,1,3}=1/6\)` 
+  - `\(e_{fe,2,2}=2/6\)`
+  - `\(e_{fe,2,3}=-1/6\)`
+  
+**What do we estimate?**
+
+- So that  `\(\beta_{TWFE}=1/2 \times E(\Lambda_{1,3}) + 1\times E(\Lambda_{2,2}) - 1/2 \times E(\Lambda_{2,3})\)`
+  - If for example `\(E(\Lambda_{2,3})=4\)` &amp; `\(E(\Lambda_{1,3})=E(\Lambda_{2,2})=1\)`, then `\(\beta_{TWFE}=-1/2\)`
+  - Estimate is negative, although all cell's treatment effects are positive!
+
+
+---
+# The CD weights in our example
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-19-1.png" style="display: block; margin: auto;" /&gt;
+
+- Sønderborg cells  get  negative weight after `\(t=30\)` because they are from a group that is mostly treated and at a time that that is mostly treated.
+- Note that in contrast to GB, we cannot decompose `\(\beta_{TWFE}\)` because we don't know the TEs in the `\(m,t\)` cells!
+
+
+
+---
+# Linking GB and CD
+
+
+**GB weights**
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-20-1.png" style="display: block; margin: auto;" /&gt;
+
+- Weight Sønderborg:0.11+0.12=0.23.
+- Weight Aabenraa:0.18+0.60+0.78. 
+
+**CD weights**
+
+.pull-left[
+
+&lt;img src="Notes_on_DiD_weights_files/figure-html/unnamed-chunk-21-1.png" style="display: block; margin: auto;" /&gt;
+]
+
+.pull-right[
+
+- Weight Sønderborg:-0.026*21+0.031*25 =0.23.
+- Weight Aabenraa:0.037*21=0.78.
+
+]
+
+---
+# GB and CD takeaways!
+
+- It is common to generalize DiD with TWFE (include treatment dummy and control for time and region)
+- The estimated coefficient is a weighted average of TEs
+- The weights are not proportional to population sizes, but also depend on treatment timing!
+- This is only an issue with heterogeneous treatment effects (but who believes in homogeneous treatment effects?)
+- Worrying: if early adopters are benefit more and treatment effects grow over time =&gt; underestimate effects! 
+- CD decomposition is more general than GB, but GB gives both weights and TEs.
+
+---
+# So what should you do?
+
+1. Use CD to test whether you have negative cells!
+2. If you have negative weights: calculate `\(\underline{\sigma}_{TWFE}\)` (See Corollary 1 in CD paper)
+  - tells us the amount of treatment heterogeneity that is required to for the pop weighted average treatment effect to  have the opposite sign of `\(\hat{\beta}_{TWFE}\)`. 
+  - So if `\(\underline{\sigma}_{TWFE}\)` is very small you should be worried!
+  - Are treatment effects likely to be correlated with weights? Check if weights are correlated with covariates.
+3. If things still look bad: use one of the new estimators.
+  - For example by CD:
+  `$$DID_M=\sigma^T_{t=2}\left(\overbrace{\frac{N_{1,0,t}}{N_S}DID_{+,t}}^{\text{"joiners"}}+\overbrace{\frac{N_{0,1,t}}{N_S}DID_{-,t}}^{\text{"leavers"}} \right)$$`
+  - Or one of the many other new estimators!
+      * Callaway &amp; Sant'Anna (2021)/Sun &amp; Abraham (2021): Aggregate groups, choose your weights, and use good comparisons only!
+
+
+---
+# And yes there are Stata and R commands
+
+CD: 
+(in Stata did_multiplegt `1`y g t d y=outcome, g=group (e.g. county), t=time, d= treatment`)
+
+```
+## $effect
+## treatment 
+##  1.029583 
+## 
+## $N_effect
+## [1] 250
+## 
+## $N_switchers_effect
+## [1] 150
+```
+
+
+---
+# An example where things could be bad...
+
+Sievertsen &amp; Wüst (2017)
+
+.pull-left[
+![](fig2.png)
+]
+
+.pull-right[
+![](fig3.png)
+]
+
+---
+# An example of a "solution"...
+
+Valente, Sievertsen, &amp; Puri (2021)
+
+.pull-left[
+![](fig4.png)
+]
+
+.pull-right[
+![](fig5.png)
+]
+
+---
+# Summary
+
+- If you estimate a DiD with more than two periods and two groups, you are (most likely) estimating a weighted average of treatment effects.
+
+- Some weights might be negative, and weights are in general not super policy relevant.
+
+- Lots of solutions available. Come to the next talk to hear about them.
+
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create();
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
