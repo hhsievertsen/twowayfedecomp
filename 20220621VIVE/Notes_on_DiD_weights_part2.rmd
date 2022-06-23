@@ -1,0 +1,843 @@
+---
+title: "Two-way fixed effects estimation - Part 2: Solutions"
+author: "Hans H. Sievertsen (h.h.sievertsen@bristol.ac.uk)"
+date: "21. juni 2022"
+output:
+  beamer_presentation: default
+  slidy_presentation: default
+theme: metropolis
+latex_engine: xelatex
+fontsize: 8pt
+---
+
+
+
+```{r , include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(dpi=300,echo = FALSE, cache = TRUE, warning=F, message = FALSE)
+library("tidyverse")
+library("ggpubr")
+library("bacondecomp")
+library("lubridate")
+library("fixest")
+library("patchwork")
+library("DIDmultiplegt")
+library("scales")
+library("readstata13")
+```
+
+```{r echo=FALSE, cache=T}
+
+#df%>%filter(G!=1)%>%mutate(true=y-1)%>%select(true)%>%colMeans()
+simulate_data<-function(seed,T2,T3,m2,m3,mt2,mt3,G2,G3){
+  # set values
+  set.seed(seed)                        # set seed
+  mt2=(1+mt2)                           # Treatment effect growth group 2
+  mt3=(1+mt3)                           # Treatment effect growth group 3
+  m2=1+m2                               # Treatment effect group 2
+  m3=1+m3                               # Treatment effect group 3
+  T<-50                                 # Time periods
+  G<-3                                  # Groups
+  G1<-25                                # Group size group 1 (never treated)
+  N<-G1+G2+G3   
+  # Create tibble
+  df<-tibble(id=rep(1:(N),T),                                     # Id variable 1 2 3 ... 1 2 3 
+             t=rep(1:T,each=(N)))%>%                              # Time variable 1 1 1 1 .... 2 2 2
+             mutate(G=ifelse(id<=G1,1,ifelse(id>G1&id<=(G1+G2),2,3)),    # Treated: D==1
+             D=ifelse(G==2&t>=T2,1,ifelse(G==3&t>=T3,1,0)),         # Post treatment indicator 
+             mean=ifelse(D==1&G==2,m2*mt2^(t-T2),                 # Treatment effect group 2 
+                  ifelse(D==1&G==3,m3*mt3^(t-T3),                 # Treatment effect group 3
+                              1)),                                # mean Y for untreated
+                          mean=ifelse(G==1,0.25,mean),
+              y=rnorm(n=N*T,mean=mean,sd=.1),                  # Simulate Outcome y
+           section=case_when(
+             t<5~1,
+             t>4&t<25~2,
+             t>24~3),
+           section1=case_when(
+             t<5~1,
+             t>4&t<30~2,
+             t>29~3))%>%                  # Simulate Outcome y
+    group_by(G,D)%>%                                              # Group by "group times post" treatment
+    mutate(ybar=mean(y))%>%                                          # Group means for chart
+    group_by(G,section)%>%                                              # Group by "group times post" treatment
+    mutate(ybar1=mean(y))%>%                                         # Group means for chart
+      group_by(G,section1)%>%                                              # Group by "group times post" treatment
+    mutate(ybar2=mean(y))                                          # Group means for chart
+  
+  df<-df%>%mutate(Date=ymd("2009-12-31") %m+% months(t),
+                kom=factor(case_when(
+                  G==1~"Tønder",
+                  G==2~"Sønderborg",
+                  G==3~"Aabenraa"                ),
+                  levels=c("Tønder","Aabenraa","Sønderborg")))
+  
+  return(df)
+}
+df<-simulate_data(1909,5,30,1,1,0.03,0.00,100,50)
+analysisdata<-df%>%filter(G!=3,t<30)%>%mutate(after=ifelse(t>4,1,0),treated=ifelse(G==2,1,0),
+                                              afterXtreated=after*treated,m=G)
+analysisdata_update<-df%>%mutate(after=ifelse(t>4,1,0),treated=ifelse(G==2,1,0),
+                                              afterXtreated=after*treated,m=G)
+save.dta13(analysisdata_update%>%mutate(true=ifelse(D==1,mean-1,NA))%>%ungroup()%>%select(id,t,G,D,y,true),"analysisdata.dta")
+dfcd<-df%>%group_by(kom,Date)%>%summarise(D=mean(D),y=mean(y),G=mean(G),t=mean(t))
+
+```
+
+
+
+# Plan for today
+
+1. Recap: Two-way fixed effects $\neq$ difference-in-differences.
+
+2. Apply solutions in Stata on simulated and real example. 
+
+
+- I will share do files, slides, and zoom recording.
+
+
+---
+
+
+# Recap: Difference-in-Differences - Chart
+
+- Aabenraa Kommune is treated with an intervention in June 2012 (*D=1*). 
+- Tønder Kommune is never treated (*D=0*)
+- Outcome of interest *y* 
+- Data for individuals in Sønderborg (N=50 individuals) and Tønder (N=25 individuals) for the period January 2010 to December 2011.
+ 
+ 
+```{r , echo = FALSE,fig.width=3.5,fig.height=2.5,fig.align="center"}
+ggplot(df%>%filter(G!=2))+geom_jitter(aes(x=Date,y=y,colour=as.factor(kom)),size=.05,alpha=0.5)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#56B4E9"))+ylim(0,4)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  labs(x=" ",color=" " )+theme(text=element_text(size=11))+
+  guides(color = guide_legend(override.aes = list(size = 2)))
+
+```
+
+
+
+
+---
+
+
+# Recap: Difference-in-Differences - Means
+
+
+```{r, echo = FALSE,fig.width=3.5,fig.height=2.5,fig.align="center"}
+ggplot()+
+  geom_jitter(df%>%filter(G!=2),mapping=aes(x=Date,y=y,colour=as.factor(kom)),size=.05,alpha=0.15)+theme_classic()+ theme(legend.position="top")+
+  geom_line(df%>%filter(G!=2,t<30),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=1)+
+  geom_line(df%>%filter(G!=2,t>=30),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=1)+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999",  "#56B4E9"))+ylim(0,4)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  labs(x=" ",color=" " )+theme(text=element_text(size=11))+
+  guides(color = guide_legend(override.aes = list(size = 2)))+
+  geom_text(aes(x=ymd("2013-03-31"),y=2.25,label="2.00"),color="#56B4E9",size=3)+
+  geom_text(aes(x=ymd("2011-01-15"),y=1.25,label="1.00"),color="#56B4E9",size=3)+
+  geom_text(aes(x=ymd("2013-03-31"),y=0.05,label=0.25),color="#999999",size=3)+
+  geom_text(aes(x=ymd("2011-01-31"),y=0.05,label=0.25),color="#999999",size=3)
+
+#summary(df%>%ungroup()%>%filter(t<30,G==3)%>%select(y))
+#summary(df%>%ungroup()%>%filter(t>=30,G==3)%>%select(y))
+#summary(df%>%ungroup()%>%filter(t<30,G==1)%>%select(y))
+#summary(df%>%ungroup()%>%filter(t>=30,G==1)%>%select(y))
+```
+
+- Difference Aabenraa: 2.00-1.00=1.00
+- Difference Tønder: 0.25-0.25=0.00
+- Difference-in-Differences=1.00-0.00=1.00
+
+
+---
+
+# Recap: Difference-in-Differences - Regression
+
+We use OLS to estimate
+
+$y=\beta_0+\beta_1 treated +\beta_{2} after + \beta_{DiD} after \times treated+u$
+
+- $after$ 1 if June 2012 or later, 0 otherwise.
+- $treated$ 1 if Aabenraa, 0 otherwise.
+
+
+```{r, echo=F, include=F}
+analysisdata<-analysisdata_update%>%filter(G!=2)%>%
+  mutate(after=ifelse(t>=30,1,0),treated=ifelse(G==3,1,0),afterXtreated=after*treated)
+```
+
+```{r, echo=T}
+feols(y~treated+after+afterXtreated,data=analysisdata)
+
+```
+
+
+
+
+
+---
+
+# Recap: Difference-in-Differences - TWFE
+
+
+We use OLS to estimate the Two-Way Fixed Effects (TWFE) model
+
+$y=\alpha+\beta_{TWFE} D+{\tau}'{t}+{\mu}'{m}+u$
+
+
+- ${t}$ a vector of month dummies
+- ${m}$ a vector of municipality dummies
+- $D$ =1 if treated, 0 otherwise
+
+```{r, echo=T}
+feols(y~D|t+m,data=analysisdata)
+
+```
+
+
+
+---
+
+# Recap: More data - More problems
+
+
+- Sønderborg Kommune is treated with the same intervention in May 2010 and onwards. 
+
+```{r , echo = FALSE,fig.width=3.5,fig.height=2.5,fig.align="center"}
+ggplot(df)+geom_jitter(aes(x=Date,y=y,colour=as.factor(kom)),size=.05,alpha=0.15)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))+ylim(0,8)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  labs(x=" ",color=" " )+theme(text=element_text(size=11))+
+  guides(color = guide_legend(override.aes = list(size = 2)))
+
+```
+
+
+---
+
+# Recap: TWFE with more groups
+
+We again use OLS to estimate the Two-Way Fixed Effects (TWFE) model
+
+$y=\alpha+\beta_{TWFE} D+{\tau}'{t}+{\mu}'{m}+u$
+
+
+- ${t}$ a vector of month dummies
+- ${m}$ a vector of municipality dummies
+- $D$ =1 if in Sønderborg May 2010 or later, 1 if in Aabenraa in June 2012 or later, 0 otherwise
+
+
+```{r, echo=T}
+feols(y~D|t+m,data=analysisdata_update)
+
+```
+
+
+
+---
+
+# Recap: How does $\beta_{TWFE}$ relate to $\beta_{DiD}$?
+
+**What is ${\beta}_{TWFE}$ actually capturing?**
+  \vspace{15pt}
+
+- *Goodman-Bacon (GB): "Difference-in-Differences with Variation in Treatment Timing" (2021, JoE )*
+
+  - **Decomposition of $\hat{\beta}_{TWFE}$  in weighted $\hat{\beta}_{DiD}$s**
+  - Applicable to staggered adoption designs.
+  
+  
+- *Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (2020, AER)*
+
+  - **Decomposition of $\hat{\beta}_{TWFE}$  in weighted TEs across $(t,m)$ cells.**
+  - Applicable to 2-way (e.g., group & time) fixed effects approaches.
+  
+  
+
+
+\vspace{15pt}
+  
+
+
+
+---
+
+# Recap: The Goodman-Bacon Decomposition
+
+- Goodman Bacon: we can decompose 
+
+```{r , echo = FALSE,fig.width=3,fig.height=2,fig.align="center"}
+ggplot()+geom_jitter(df,mapping=aes(x=Date,y=y,colour=as.factor(kom)),size=.05,alpha=0.1)+theme_classic()+ theme(legend.position="top")+
+  labs(x="t",y="y",colour="g") +scale_color_manual(values=c("#999999","#56B4E9", "#E69F00"))+ylim(0,8)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_vline(xintercept = 10, linetype="dashed", color = "gray", size=0.5)+
+  labs(x=" ",color=" " )+theme(text=element_text(size=9))+
+  guides(color = guide_legend(override.aes = list(size = 2)))+
+  geom_vline(xintercept=ymd("2010-05-15"),alpha=.1)+
+  geom_vline(xintercept=ymd("2012-06-15"),alpha=.1)
+
+```
+
+- into four 2X2 DiDs:
+
+```{r , echo = FALSE,fig.width=4,fig.height=2,fig.align="center"}
+
+bp<-ggplot(df)+theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour="g")+
+  scale_x_date(date_breaks = "25 months", 
+                 labels=date_format("%b-%y"),
+                 limits = as.Date(c('2010-01-01','2014-03-01')))+ylim(0,7)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),plot.title = element_text(hjust = 0.5),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))
+
+
+a<-bp+geom_step(data=df%>%filter(G!=3),mapping=aes(x=Date,y=ybar,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2010-05-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999","#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=6))
+b<-bp+geom_step(data=df%>%filter(G!=2),mapping=aes(x=Date,y=ybar,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2012-06-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999",  "#56B4E9"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=6))
+c<-bp+geom_step(data=df%>%filter(G!=1,t<30),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2010-05-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#56B4E9", "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=6))
+d<-bp+geom_step(data=df%>%filter(G!=1,t>5),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2012-06-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c( "#56B4E9", "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=6))
+
+ggarrange(a,b,c,d,labels = c("DiD1: Sønd (T) vs Tønd (C) ", "DiD2: Aabe (T) vs Tønd (C)", "DiD3: Sønd (T) vs Aabe (C) ","DiD4: Aabe (T) vs Sønd (C)"),ncol = 4, nrow = 2,common.legend = TRUE, legend = "bottom", font.label = list(size = 3, face = "plain", color ="black"))
+```
+
+
+
+
+
+---
+
+# Recap: DiD4 the Bad Guy!
+
+
+```{r , echo = FALSE,fig.width=3,fig.height=2, fig.align="center"}
+
+bp<-ggplot(df)+theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour="g")+
+  scale_x_date(date_breaks = "12 months", 
+                 labels=date_format("%b-%y"),
+                 limits = as.Date(c('2010-01-01','2014-03-01')))+ylim(0,7)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),plot.title = element_text(hjust = 0.5),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))
+
+
+a<-bp+geom_step(data=df%>%filter(G!=3),mapping=aes(x=Date,y=ybar,colour=as.factor(kom)),size=.5)+
+  geom_vline(xintercept = ymd("2010-05-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999", "#56B4E9","#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=14))
+b<-bp+geom_step(data=df%>%filter(G!=2),mapping=aes(x=Date,y=ybar,colour=as.factor(kom)),size=.5)+
+  geom_vline(xintercept = ymd("2012-06-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999",  "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=14))
+c<-bp+geom_step(data=df%>%filter(G!=1,t<30),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=.5)+
+  geom_vline(xintercept = ymd("2010-05-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#56B4E9", "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=14))
+d<-bp+geom_jitter(data=df%>%filter(G!=1,t>5),mapping=aes(x=Date,y=y,colour=as.factor(kom)),size=0.1,alpha=0.1)+geom_step(data=df%>%filter(G!=1,t>5),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=1)+
+  geom_vline(xintercept = ymd("2012-06-15"), linetype="dashed", color = "gray", size=1.25)+
+  scale_color_manual(values=c( "#56B4E9", "#E69F00"))+
+  labs(x=" ",color=" ",title="DiD4: Aabe (T) vs Sønd (C)")+theme(text=element_text(size=7))
+
+
+d
+
+#summary(analysisdata_update%>%ungroup()%>%filter(t<30,G==3,t>4)%>%select(y))
+#summary(analysisdata_update%>%ungroup()%>%filter(t>=30,G==3)%>%select(y))
+#summary(analysisdata_update%>%ungroup()%>%filter(t<30,G==2)%>%select(y))
+#summary(analysisdata_update%>%ungroup()%>%filter(t>=30,G==2)%>%select(y))
+
+```
+
+
+- Difference Aabenraa (Treated): 2.00-1.00=1.00
+- Difference Sønderborg (Always Treated: Our Control!):  5.72-2.65=3.07
+- Difference-in-Differences: 1.00-3.07=-2.00
+
+We use Sønderborg as a control group, because it doesn't change treatment status. However, because of dynamic treatment effects (for Sønderborg), Sønderborg is a poor control because the number of periods it has been treated changes over time! 
+
+- Conclusion: Trend for Sønderborg is not a good counterfactual for Aabenraa!
+
+
+
+
+---
+
+
+# Recap: The Goodman-Bacon ${\beta}_{TWFE}$ decomposition
+
+${\beta}_{TWFE}$ ***is the weighted average across these 4 DiDs***:
+
+$$\hat{\beta}_{TWFE}=w_1\hat{\beta}_{DiD1}+w_2\hat{\beta}_{DiD2}+w_3\hat{\beta}_{DiD3}+w_4\hat{\beta}_{DiD4}$$
+
+
+- Key insight: $w\neq$ population shares, but also **depends on when a group gets treated**. 
+
+- See Theorem 1 in GB for the general expression of (3) (equation 10a in his paper) and the definition of the weights. 
+
+
+
+# Recap: Goodman-Bacon Weights in our Example
+
+  
+```{r , echo = FALSE,include=FALSE,cache=T}
+df_bacon <- bacon(y ~ D,data = df,id_var = "id",time_var = "t")    # Bacon decomp
+cc<-feols(y ~ D | G+ t, df)
+```
+
+
+
+```{r , echo = FALSE,fig.width=4,fig.height=1,fig.align="center"}
+
+
+bp<-ggplot(df)+theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour="g")+
+  scale_x_date(date_breaks = "25 months", 
+                 labels=date_format("%b-%y"),
+                 limits = as.Date(c('2010-01-01','2014-03-01')))+ylim(0,7)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),plot.title = element_text(hjust = 0.5),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))
+
+
+a<-bp+geom_step(data=df%>%filter(G!=3),mapping=aes(x=Date,y=ybar,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2010-05-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999",  "#56B4E9"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=6))
+b<-bp+geom_step(data=df%>%filter(G!=2),mapping=aes(x=Date,y=ybar,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2012-06-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999",  "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=6))
+c<-bp+geom_step(data=df%>%filter(G!=1,t<30),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2010-05-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#56B4E9", "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=6))
+d<-bp+geom_step(data=df%>%filter(G!=1,t>5),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2012-06-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c( "#56B4E9", "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=6))
+
+ggarrange(a,b,c,d,labels = c(paste("Sø (T) vs Tø (C): w1=",round(df_bacon$weight[1],digits=2)),paste("Ab (T) vs Tø (C): w2=",round(df_bacon$weight[2],digits=2)),paste("Sø (T) vs Ab (C): w3=",round(df_bacon$weight[4],digits=2)),paste("Ab (T) vs Sø (C): w4=",round(df_bacon$weight[3],digits=2))),ncol = 4,  legend = "bottom", font.label = list(size = 4, face = "plain", color ="black"),nrow = 1,common.legend = TRUE )
+
+```
+
+**Recap: Decomposing the TWFE** 
+
+$\hat{\beta}_{TWFE}=$ `r round(df_bacon$weight[1],digits=3)` $\times$ `r round(df_bacon$estimate[1],digits=3)`+ 
+  `r round(df_bacon$weight[2],digits=3)` $\times$ `r round(df_bacon$estimate[2],digits=3)`+ 
+  `r round(df_bacon$weight[4],digits=3)` $\times$ `r round(df_bacon$estimate[4],digits=3)`+ 
+  `r round(df_bacon$weight[3],digits=3)` $\times$ `r round(df_bacon$estimate[3],digits=3)`=`r round(as.numeric(cc$coefficients[1]),digits=2)`
+
+- Weight Sønderborg:0.11+0.12=0.23. $N_{\text{Sø}}=100$
+- Weight Aabenraa:0.18+0.60=0.78. $N_{\text{Ab}}=50$
+- Aabenraa gets a larger weight because it is treated more in the middle.
+- Not necessarily a problem if you know that it is not population weighted!
+
+
+
+
+
+---
+
+# Recap: The CD decomposition
+
+**Decompose $\beta_{TWFE}$  in weighted TEs across  $(m,t):D_{m,t}=1$ cells**
+
+- A ${m,t}$ cell is time (one of the fixed effects) period times area (the other fixed effect) treated unit. 
+   
+- $\beta_{TWFE}$ is then given by the weighted average across all these cells.
+
+$$\beta_{TWFE}=w_{Sønderborg,May2010} TE_{S,5:2010}+w_{S,6:2010} TE_{S,6:2010}...$$ +
+
+- (This is more "general" than GB)
+
+- Cells that are treated when no one else is treated => large weight
+- A treated cell for a group that is rarely treated => large weight!
+
+
+
+
+---
+
+# Recap: The CD   decomposition
+
+**Decompose $\beta_{TWFE}$  in weighted TEs across  $(m,t):D_{m,t}=1$ cells**
+
+
+```{r , echo = FALSE,fig.width=3.5,fig.height=2.5,fig.align="center"}
+
+
+ggplot()+
+  geom_point(dfcd,mapping=aes(x=Date,y=y,colour=as.factor(kom)),size=1)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour=" ") +scale_color_manual(values=c("#999999","#56B4E9", "#E69F00"))+ylim(0,8)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = ymd("2010-05-15"), linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = ymd("2012-06-15"), linetype="dashed", color = "gray", size=0.5)+theme(text=element_text(size=11))+
+    guides(color = guide_legend(override.aes = list(size = 2)))+
+  geom_point(data=dfcd%>%filter(t==6&G==2),mapping=aes(x=Date,y=y),color="black",size=2,shape=1)+
+  geom_text(aes(x=ymd("2010-08-31"),y=1.5),label="(m=Sø,t=June 2010)", size=2)
+
+```
+
+
+
+
+---
+
+# Recap: The CD   decomposition
+
+**Decompose $\beta_{TWFE}$  in weighted TEs across  $(m,t):D_{m,t}=1$ cells**
+
+
+```{r , echo = FALSE,fig.width=3.5,fig.height=2.5,fig.align="center"}
+
+ggplot()+
+  geom_point(dfcd,mapping=aes(x=Date,y=y,colour=as.factor(kom)),size=1)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour=" ") +scale_color_manual(values=c("#999999", "#56B4E9","#E69F00"))+ylim(0,8)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+   geom_vline(xintercept = ymd("2010-05-15"), linetype="dashed", color = "gray", size=0.5)+
+  geom_vline(xintercept = ymd("2012-06-15"), linetype="dashed", color = "gray", size=0.5)+theme(text=element_text(size=11))+
+    guides(color = guide_legend(override.aes = list(size = 2)))+
+  geom_point(data=dfcd%>%filter(t==50&G==2),mapping=aes(x=Date,y=y),color="black",size=2,shape=1)+
+  geom_text(aes(x=ymd("2013-07-31"),y=7.8),label="(m=Sø,t=Feb 2014)", size=2)
+
+```
+
+\addtocounter{framenumber}{-1}
+  
+  
+
+
+  
+  
+---
+
+# Recap: The CD weights in our example
+
+```{r , echo = FALSE,fig.width=3,fig.height=2,fig.align="center",warning=FALSE}
+m<-lm(D~as.factor(t)+as.factor(G),data=df)
+df$res<-m$residuals
+# calculate weights
+w<-df%>%filter(G!=1)%>%group_by(Date,G)%>%summarise(d=mean(D),res=mean(res),y=mean(y),n=sum(D))%>%filter(d==1)%>%
+  ungroup()%>%mutate(weight=(n/sum(n))*res/(sum((n/sum(n))*res)))
+
+# charts
+ggplot(dfcd)+geom_point(aes(x=Date,y=y,colour=kom),show.legend = F,size=1)+
+  scale_color_manual(values=c("#999999", "#56B4E9","#E69F00"))+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour=" ") +ylim(0,8)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_point(data=w,mapping=aes(x=Date,y=y+0.2,shape=as.factor(round(weight,digits=6))),size=1)+labs(colour="g",shape="weight")+theme(text=element_text(size=9))+
+  guides(color = guide_legend(override.aes = list(size = 2)))
+
+
+```
+
+- Sønderborg cells  get  negative weight after $t=30$ because they are from a group that is mostly treated and at a time that that is mostly treated.
+- Note that in contrast to GB, we cannot empirically decompose $\beta_{TWFE}$ because we don't know the TEs in the $m,t$ cells!
+
+
+
+  
+
+  
+---
+
+# Recap: Linking GB and CD
+
+
+**GB weights**
+
+```{r , echo = FALSE,fig.width=4,fig.height=1,fig.align="center"}
+
+
+bp<-ggplot(df)+theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour="g")+
+  scale_x_date(date_breaks = "25 months", 
+                 labels=date_format("%b-%y"),
+                 limits = as.Date(c('2010-01-01','2014-03-01')))+ylim(0,7)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=4),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),plot.title = element_text(hjust = 0.5),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))
+
+
+a<-bp+geom_step(data=df%>%filter(G!=3),mapping=aes(x=Date,y=ybar,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2010-05-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999", "#56B4E9"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=5))
+b<-bp+geom_step(data=df%>%filter(G!=2),mapping=aes(x=Date,y=ybar,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2012-06-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#999999",  "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=5))
+c<-bp+geom_step(data=df%>%filter(G!=1,t<30),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2010-05-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c("#56B4E9", "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=5))
+d<-bp+geom_step(data=df%>%filter(G!=1,t>5),mapping=aes(x=Date,y=ybar2,colour=as.factor(kom)),size=.75)+
+  geom_vline(xintercept = ymd("2012-06-01"), linetype="dashed", color = "gray", size=0.25)+
+  scale_color_manual(values=c( "#56B4E9", "#E69F00"))+
+  labs(x=" ",color=" " )+theme(text=element_text(size=5))
+
+ggarrange(a,b,c,d,labels = c(paste("Sø (T) vs Tø (C): w1=",round(df_bacon$weight[1],digits=2)),paste("Ab (T) vs Tø (C): w2=",round(df_bacon$weight[2],digits=2)),paste("Sø (T) vs Ab (C): w3=",round(df_bacon$weight[4],digits=2)),paste("Ab (T) vs Sø (C): w4=",round(df_bacon$weight[3],digits=2))),ncol = 4, nrow = 1,common.legend = T, legend = "bottom", font.label = list(size = 3, face = "plain", color ="black"))
+
+```
+\vspace{-18pt}
+- Weight Sønderborg:0.11+0.12=0.23.
+- Weight Aabenraa:0.18+0.60+0.78. 
+
+**CD weights**
+
+
+
+```{r , echo = FALSE,fig.width=2.5,fig.height=1.5,fig.align="center",warning=FALSE}
+
+
+# charts
+ggplot(dfcd)+geom_point(aes(x=Date,y=y,colour=kom),show.legend = F,size=.5)+
+  scale_color_manual(values=c("#999999",  "#56B4E9","#E69F00"))+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour=" ") +ylim(0,8)+
+  theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        text = element_text(size=5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+        panel.background = element_rect(fill = "#FAFAFA"),legend.margin=margin(b=-10),legend.box.margin=margin(0,0,0,0))+
+  geom_point(data=w,mapping=aes(x=Date,y=y+0.2,shape=as.factor(round(weight,digits=6))),size=.5)+labs(colour="g",shape="weight")+theme(text=element_text(size=8))+
+  guides(color = guide_legend(override.aes = list(size = 1)))
+
+```
+
+\vspace{-18pt}
+- Weight Sønderborg:$-0.026\times 21+0.031\times 25$ =0.23.
+- Weight Aabenraa:$0.037\times 21$=0.78.
+
+
+
+---
+
+# What to do?
+
+**So you have a TWFE analysis. Ask: **
+
+1. Are treatment effects homogeneous?
+2. Are treatment effects dynamic?
+3. Do you have negative weights?
+
+
+# Solutions: A Roadmap:
+
+1. Ruling out dynamic and heterogeneous treatments effects a priori is often a strong assumption. So I typically assume that could be the case. 
+
+2. Calculate weights (GB and/or CD)
+
+3. Use estimator that handles the weight issue and (potentially) allows for dynamic effects.
+
+
+
+
+---
+
+# Solution 1: CD's  estimator
+
+\begin{columns}
+\begin{column}{0.5\linewidth}
+
+\begin{itemize}
+\item  Chaisemartin \& D'Haultfoeuille (CD): (2020, AER) 
+\item  Not allowing dynamic effects!
+\item  \alert{Compares adjacent periods for switching in and out cells.}
+\item  Switching in (joiners) relies on // assumption on untreated outcomes.
+\item Switching out (leavers) relies on // assumption on treated outcomes.
+
+\end{itemize}
+\end{column}
+
+
+
+
+
+\begin{column}{0.5\linewidth}
+
+```{r , echo = FALSE,fig.width=2,fig.height=2,fig.align="center"}
+
+ggplot()+
+  geom_point(dfcd,mapping=aes(x=Date,y=y,colour=as.factor(kom)),size=.5)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour=" ") +scale_color_manual(values=c("#999999",  "#56B4E9","#E69F00"))+ylim(0,8)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=1.5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"), legend.position = "none")+
+   geom_vline(xintercept = ymd("2010-05-15"), linetype="dashed", color = "gray", size=0.15)+
+  geom_vline(xintercept = ymd("2012-06-15"), linetype="dashed", color = "gray", size=0.5)+theme(text=element_text(size=11))+
+    guides(color = guide_legend(override.aes = list(size = 1.75)))
+
+```
+
+\end{column}
+\end{columns}
+
+
+---
+
+# Allowing for dynamic effects
+
+- Goal: Estimate event-study design with OLS for effects at $l$ periods to treatment.
+
+$$y_{g,t}=\alpha_{g}+\tau_{t}+\sum \beta_{TWFE,l}1\{l==1\}+e_{g,t}
+$$
+
+
+- This approach also suffers from the issues listed above,
+
+$$E[\hat{\beta}_{TWFE,l}]=\sum w_{g,l}TE_{g,l}+\sum\sum w_{g,l'}TE_{g,l'}$$
+  
+1. First sum might have negative weights (very similar as before)!
+2. And also contamination from other periods $l'\neq l$ treatment effect.
+
+- Decide on how to aggregate effects across groups!
+
+(see Sun and Abraham (2021) and Chaisemartin's "Advances in Difference-in-Differences in Econometrics" talk in December 2022).
+  
+---
+
+# Solution 2: Callaway and Sant'Anna (2021, JE) estimator
+
+
+
+\begin{columns}
+\begin{column}{0.5\linewidth}
+
+\begin{itemize}
+\item [] (Sun \& Abraham (2021, JE) is very much of the same spirit)
+\item  Create groups, $g$, that start treatment at the same time, $c$.
+\item  To get the effect of having been treated for $l$ periods:
+\item []
+\begin{itemize}
+\item []
+\item[1.] Compute difference in $y$ for group $c$ between period $c+l$ and period $c-1$.
+\item[2.]  Compute average difference in $y$ for never treated groups between period $c+l$ and period $c-l$. 
+\item[3.]  Compute difference between 1 and 2.
+\end{itemize}
+\item []
+\item Key assumption: // based on never having been treated!
+\end{itemize}
+\end{column}
+
+
+\begin{column}{0.5\linewidth}
+
+```{r , echo = FALSE,fig.width=2,fig.height=2,fig.align="center"}
+
+ggplot()+
+  geom_point(dfcd,mapping=aes(x=Date,y=y,colour=as.factor(kom)),size=.5)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour=" ") +scale_color_manual(values=c("#999999",  "#56B4E9","#E69F00"))+ylim(0,8)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=1.5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"), legend.position = "none")+
+   geom_vline(xintercept = ymd("2010-05-15"), linetype="dashed", color = "gray", size=0.15)+
+  geom_vline(xintercept = ymd("2012-06-15"), linetype="dashed", color = "gray", size=0.5)+theme(text=element_text(size=11))+
+    guides(color = guide_legend(override.aes = list(size = 1.75)))
+
+```
+
+\end{column}
+\end{columns}
+
+
+
+---
+
+# Solution 3: Borusyak, Jaravel, and Spiess (BJS) (2022)
+
+\begin{columns}
+\begin{column}{0.5\linewidth}
+
+\begin{itemize}
+\item As CS, but to get the effect of having been treated for $l$ periods:
+\item []
+\begin{itemize}
+\item []
+\item[1.] Compute difference in $y$ for group $c$ between period $c+l$ and average across all periods  $t=0$ and  $c-1$.
+\item [2.] Compute average difference in $y$ for never treated groups between period $c+l$ and  average across all periods  $t=0$ and  $c-1$. 
+\item [3.] Compute difference between 1 and 2. 
+\end{itemize}
+\item []
+\item More efficient than CS because it uses more data.
+\item But more sensitive to violation of common trends assumption!
+\item Bias-variance trade-off
+\end{itemize}
+\end{column}
+
+
+\begin{column}{0.5\linewidth}
+
+```{r , echo = FALSE,fig.width=2,fig.height=2,fig.align="center"}
+
+ggplot()+
+  geom_point(dfcd,mapping=aes(x=Date,y=y,colour=as.factor(kom)),size=.5)+
+  theme_classic()+ theme(legend.position="top")+
+  labs(x=" ",y="y",colour=" ") +scale_color_manual(values=c("#999999",  "#56B4E9","#E69F00"))+ylim(0,8)+
+   theme(axis.ticks = element_blank(),plot.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         text = element_text(size=1.5),legend.background = element_rect(fill="#FAFAFA",colour = "#FAFAFA"),
+         panel.background = element_rect(fill = "#FAFAFA"), legend.position = "none")+
+   geom_vline(xintercept = ymd("2010-05-15"), linetype="dashed", color = "gray", size=0.15)+
+  geom_vline(xintercept = ymd("2012-06-15"), linetype="dashed", color = "gray", size=0.5)+theme(text=element_text(size=11))+
+    guides(color = guide_legend(override.aes = list(size = 1.75)))
+
+```
+
+\end{column}
+\end{columns}
+
+---
+
+Let's try them in Stata on our simulated exampel and on a real example
+
+---
+
+# A real example
+
+
+\begin{columns}
+\begin{column}{0.5\linewidth}
+\includegraphics[width=0.9\linewidth]{fig4.png}
+\end{column}
+\begin{column}{0.5\linewidth}
+Valente, Sievertsen, \& Puri (2021)
+\begin{itemize}
+\item Staggered rollout of chlorhexidine gel (CHX) treatment across districts in Nepal. 
+\item Estimate effect of CHX on mortality using district and month of fixed effects.
+\end{itemize}
+\end{column}
+\end{columns}
+
+
