@@ -3,8 +3,8 @@ title: "A few notes about decomposing the two way fixed effects estimator"
 author: "By Hans H. Sievertsen (h.h.sievertsen@bristol.ac.uk)"
 date: 'This version: 05/06/2020; [link to most recent version](https://github.com/hhsievertsen/twowayfedecomp/raw/master/slides/Notes_on_DiD_weights.pdf)'
 output:
-  slidy_presentation: default
   beamer_presentation: default
+  slidy_presentation: default
 theme: metropolis
 latex_engine: xelatex
 fontsize: 8pt
@@ -17,7 +17,7 @@ fontsize: 8pt
 ```
 
 ```{r setup, include=FALSE, echo=FALSE}
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE)
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE, warning=FALSE)
 library("tidyverse")
 library("ggpubr")
 library("bacondecomp")
@@ -86,7 +86,8 @@ ggplot(df%>%filter(G!=3))+geom_jitter(aes(x=t,y=y,colour=as.factor(G)),size=.8,a
 
 - $t$: period, $g$: group, $y$: outcome, $d$: treatment indicator,  $g=1$ is never treated, $g=2$ is treated from $t=10$.
 
-## The traditional DD
+
+# The traditional DD
 
 ```{r c3, echo = FALSE,fig.width=3,fig.height=2,fig.align="center"}
 ggplot(df%>%filter(G!=3))+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1)+theme_classic()+ theme(legend.position="top")+
@@ -106,7 +107,7 @@ ggplot(df%>%filter(G!=3))+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1)+
 - As seen in for example *Card & Krueger (1994) "Minimum Wages and Employment: A Case Study of the Fast
 Food Industry in New Jersey and Pennsylvania", AER, 84, 772-784.*
 
-## DD with more groups
+# DD with more groups
 
 ```{r c4, echo = FALSE,fig.width=3,fig.height=2,fig.align="center"}
 ggplot(df)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1)+theme_classic()+ theme(legend.position="top")+
@@ -126,7 +127,7 @@ ggplot(df)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1)+theme_classic()
 - $\beta_{fe}$ is also called the two-way FE estimator (we have both group and period fixed effects).
 
 
-## What  $\beta_{fe}$ capturing and how does it relate to $\hat{\beta}^{DD}$ ?
+# What  $\beta_{fe}$ capturing and how does it relate to $\hat{\beta}^{DD}$ ?
 
 **Bit question: What is ${\beta}_{fe}$ capturing?**
 \vspace{15pt}
@@ -147,7 +148,7 @@ ggplot(df)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1)+theme_classic()
 
 **Let's start with the GB approach**
 
-## The GB decomposition
+# The GB decomposition
 
 - We consider the example with 3 groups and a staggered introduction of a policy: 
 ```{r c5, echo = FALSE,fig.width=2.5,fig.height=1.5,fig.align="center"}
@@ -192,7 +193,7 @@ ggarrange(a,b,c,d,labels = c("DD1: Early (T) vs Never (C) ", "DD2: Late (T) vs N
 
 
 
-## GB: ${\beta}^{DD}$ is a weighted average of the separate DDs
+# GB: ${\beta}^{DD}$ is a weighted average of the separate DDs
 
 - In our running example,  ${\beta}^{DD}$ is the weighted average across these 4 DDs:
 
@@ -218,7 +219,7 @@ where:
     
 (see page 12 in Goodman-Bacon, 2019)
 
-## Is it a problem? Let's consider an example.
+# Is it a problem? Let's consider an example.
 **DGP**
 
 - treatment effects: group2=1 (yellow), group3=2 (blue)
@@ -269,7 +270,7 @@ ggarrange(a,b,c,d,nrow=1, common.legend = TRUE, legend="top")
 - Group 3 (blue) gets a higher weight because it is treated more in the middle.
 - Not a problem if you know that it is not population weighted.
 
-## What about the last term ($\Lambda ATT$)? Treatments effects varying over time.
+# What about the last term ($\Lambda ATT$)? Treatments effects varying over time.
 **DGP**
 
 - We now let the treatmetn effect grow with a rate of 3 percent per period in group 2
@@ -306,7 +307,7 @@ ggplot(dfplot)+geom_jitter(aes(x=t,y=y,colour=as.factor(G)),size=0.25,alpha=0.05
   
 - Why?
 
-## What about the last term ($\Lambda ATT$)? Treatments effects varying over time.
+# What about the last term ($\Lambda ATT$)? Treatments effects varying over time.
 
 **DGP**
 
@@ -374,7 +375,7 @@ What if we left out the last DD?
                           `r round(df_bacon$weight[4],digits=2)` $\times$ `r round(df_bacon$estimate[4],digits=2)`=
                           `r round(df_bacon$weight[1]*df_bacon$estimate[1]+df_bacon$weight[2]*df_bacon$estimate[2]+df_bacon$weight[4]*df_bacon$estimate[4],digits=2)`
 
-## GB Summary
+# GB Summary
 
 *Goodman-Bacon (GB): "Difference-in-Differences with Variation in Treatment Timing" (2019, WP)*
 
@@ -399,7 +400,7 @@ What if we left out the last DD?
 - Read the paper (there is much more than ocvered here)
 
 
-## Now to the CD   decomposition
+# Now to the CD   decomposition
 *Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
 
 **Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
@@ -422,7 +423,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
 
 ```
 
-## The CD decomposition
+# The CD decomposition
 
 *Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
 
@@ -444,7 +445,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
   geom_text(aes(x=10,y=2.3),label="(g=2,t=10)", size=2)
 ```
 
-## The CD decomposition
+# The CD decomposition
 
 *Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
 
@@ -468,7 +469,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
   
 ```
 
-## The CD decomposition
+# The CD decomposition
 
 *Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
 
@@ -492,7 +493,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
   
 ```
 
-## The CD decomposition
+# The CD decomposition
 
 *Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
 
@@ -517,7 +518,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
   
 ```
 
-## The CD decomposition
+# The CD decomposition
 
 *Chaisemartin & D'Haultfoeuille (CD): "Two-way fixed effects estimators with heterogeneous treatment effects" (forthcoming, AER)*
 
@@ -542,7 +543,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)),size=1,alpha=0.15)+
   
 ```
 
-## The CD decomposition
+# The CD decomposition
 
 **Decompose $\beta_{fe}$  in weighted TEs across  $(g,t):D_{g,t}=1$ cells**
 
@@ -565,7 +566,7 @@ where
 
 - How are the weights defined?
 
-## CD: Calculating the weights
+# CD: Calculating the weights
 
 **Calculating the CD weights**
 
@@ -587,7 +588,7 @@ w_{fe,g_t}=\frac{e_{fe,g,t}}{\sum_{(g,t):D_{g,t}=1} \frac{N_{g,t}}{N_{D=1}}e_{fe
 
 
  
-## An  example from CD
+# An  example from CD
 
 - 2 equally sized groups, 3 periods
   - group 1 is only treated in period 3
@@ -606,7 +607,7 @@ w_{fe,g_t}=\frac{e_{fe,g,t}}{\sum_{(g,t):D_{g,t}=1} \frac{N_{g,t}}{N_{D=1}}e_{fe
 
 
 
-## Let's calculate the weights in our example
+# Let's calculate the weights in our example
 
 ```{r , echo = FALSE,fig.width=3.5,fig.height=2,fig.align="center",warning=FALSE}
 rm(list=ls())
@@ -669,7 +670,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)))+
                       
 - Note: the cells' TEs are normally unobserved (we know the DGP).
 
-##  Can we link the CD and GB weights?
+#  Can we link the CD and GB weights?
 
 **The GB weights**
 \vspace{-15pt}
@@ -767,7 +768,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)))+
 - Sum of weights where G=3 is treated: 31 $\times$ 0.02135=0.66.
 
 
-##  Back to CD
+#  Back to CD
 
 **So what should we do?**
 
@@ -788,7 +789,7 @@ ggplot(df1)+geom_step(aes(x=t,y=ybar,colour=as.factor(G)))+
 
 - R is on the way
 
-##  Read!
+#  Read!
 
 Read both papers. There are many more insights  in the papers. 
 
@@ -804,7 +805,7 @@ Read both papers. There are many more insights  in the papers.
 
 ... and much more
 
-## Summary 
+# Summary 
 
 Question: What is  $\hat{\beta}_{fe}$ from OLS regression of: 
 $$ y_{i,g,t}=\alpha+\gamma' G_{g}+\psi' T_{t}+ \beta_{fe} D_{g,t}+e_{i,g,t}$$
@@ -824,7 +825,7 @@ capturing?
   - And much more.
   
   
-## What I will do now
+# What I will do now
 
 1. Calculate Chaisemartin & D'Haultfoeuille weights (with \texttt{twowayfeweights} in Stata or manually  in R).
 2. If I have negative weights, I'll check how much treatment heterogeneity is required to flip the sign (with \texttt{did\_multiplegt} in Stata).
@@ -836,7 +837,7 @@ capturing?
 
   
   
-## Thanks
+# Thanks
 
 Thanks to Clément, Xavier & Andrew for excellent papers!
 
