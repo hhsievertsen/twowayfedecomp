@@ -83,20 +83,23 @@ output$distPlot <- renderPlot({
       # Format table
       # Overall
       overall<-df_disp%>%filter(order%in%c(1,2,5))%>%
-        mutate(estimate=ifelse(order==1,estimate,""))%>%select(-weight,-order)%>%
-        knitr::kable("html",align = c("l","c","c","c","c"),col.names = c(" ","DGP","Pop share","Two FE  Estimate")) %>%
-      kable_styling("striped", full_width = F) 
+        mutate(estimate=ifelse(order==1,estimate,""))%>%select(-weight,-order)
+      #%>%
+       # knitr::kable("html",align = c("l","c","c","c","c"),col.names = c(" ","DGP","Pop share","Two FE  Estimate")) %>%
+      #kable_styling("striped", full_width = F) 
       #
-      bacon<-df_disp%>%filter(row_number(weight)>2)%>%select(-order,-ATT_DGP,-population_weight)%>%
-        knitr::kable("html",align = c("l","c","c","c"),col.names = c(" ","DD Estimate           ",
-                                                                             "Weight        ")) %>%
-        kable_styling("striped", full_width = F) 
+      bacon<-df_disp%>%filter(row_number(weight)>2)%>%
+        select(-order,-ATT_DGP,-population_weight)
+      #%>%
+       # knitr::kable("html",align = c("l","c","c","c"),col.names = c(" ","DD Estimate           ",
+        #                                                                     "Weight        ")) %>%
+        #kable_styling("striped", full_width = F) 
       
       # Bacon
-      output$bacon <- renderPrint(                                   # Post Bacon decomposition
+      output$bacon <- renderTable(                                   # Post Bacon decomposition
         bacon )
       # overall
-      output$RegSum1 <- renderPrint(                                   # Post overall
+      output$RegSum1 <- renderTable(                                   # Post overall
         overall )
       }
       else{
@@ -111,11 +114,11 @@ output$distPlot <- renderPlot({
           kable_styling("striped", full_width = F)
         output$RegSum1 <- renderPrint(                                   # Post overall
           overall )
-        bacon<-tibble(c="Not applicable")%>%knitr::kable("html",align = c("l"),col.names = c(" ")) %>%
+        bacon<-tibble(c="Not applicable")
+        #%>%knitr::kable("html",align = c("l"),col.names = c(" ")) %>%
           kable_styling("striped", full_width = F)
         # Bacon
-        output$bacon <- renderPrint(                                   # Post Bacon decomposition
-          bacon )
+        output$bacon <-  renderTable( cdtab )
       }
       # Overall
   
@@ -159,8 +162,7 @@ output$distPlot <- renderPlot({
         cdtabf<-cdtab%>%   knitr::kable("html",align = c("l","c","c","c","c"),col.names = c(" ","Weights",
                                                                                             "Neg. weights","Sum weights", "Sum neg. weights")) %>%
           kable_styling("striped", full_width = F) 
-        output$cd <- renderPrint(                                   # Post CD decomposition
-          cdtabf )
+        output$cd <- renderTable( cdtab )
        
         # main chart
         c1<-ggplot(df,aes(x=t,y=y,colour=as.factor(G)))+geom_jitter(alpha=0.1)+

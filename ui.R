@@ -26,7 +26,7 @@ ui <- fluidPage(
             </script >
             ")),
     # Sidebar for settings
-    column(3,
+    column(2,
            # Settings
            strong("Settings"),br(),
            # Inputs
@@ -47,7 +47,7 @@ ui <- fluidPage(
            
     ),
     # Main panel with results
-    column(6,
+    column(8,
            h3("Illustration of the two-way fixed effects estimator decomposition"),br(),
           
           
@@ -62,7 +62,7 @@ ui <- fluidPage(
           tableOutput(outputId = "cd"))
     ),
     # Side bar with info
-    fluidRow(column(3,
+    fluidRow(column(2,
  
                     strong("Description"),br(),br(),
                   "- Let g denote the group, t the period, d be a binary treatment indicator, y an outcome.",br(),
